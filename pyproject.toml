@@ -1,0 +1,13 @@
+[project]
+name = "openz-uss-mirror"
+version = "0.1.0"
+description = "Documentation d'architecture pour la résilience CI/CD Mainframe : synchronisation continue des sources GitLab vers un miroir USS z/OS"
+requires-python = ">=3.12"
+dependencies = [
+    "mkdocs-awesome-pages-plugin>=2.10.1",
+    "mkdocs-git-revision-date-localized-plugin>=1.5.3",
+    "mkdocs-include-markdown-plugin>=7.3.0",
+    "mkdocs-macros-plugin>=1.5.0",
+    "mkdocs-material>=9.7.6",
+    "mkdocs-minify-plugin>=0.8.0",
+]

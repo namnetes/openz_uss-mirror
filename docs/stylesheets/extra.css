@@ -1,0 +1,105 @@
+/* ── 1. Full-width layout ─────────────────────────────────────────────────── */
+/* Removes Material's centered column constraint (~1200 px) so wide tables
+   and code blocks use the full viewport width without horizontal scrolling. */
+.md-grid {
+  max-width: 100%;
+  margin: 0;
+}
+
+.md-content {
+  max-width: 100%;
+}
+
+.md-main__inner {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.md-content__inner {
+  max-width: 100%;
+}
+
+/* ── 2. Sidebar dimensions ────────────────────────────────────────────────── */
+/* Values calibrated for French section titles: left nav without truncation,
+   right TOC wide enough for long anchors generated from French headings. */
+:root {
+  --md-sidebar-width: 13.068rem;
+}
+
+.md-sidebar {
+  width: 13.068rem !important;
+}
+
+.md-sidebar--secondary {
+  width: 20.7537rem !important;
+}
+
+/* ── 3. Webkit sidebar padding fix ───────────────────────────────────────── */
+/* Material sets padding-right via calc(100% - 11.5rem) which caps sidebar
+   content at 11.5 rem regardless of the declared sidebar width above.
+   @supports targets only webkit browsers (Chrome, Edge, Brave). */
+@supports selector(::-webkit-scrollbar) {
+  [dir=ltr] .md-sidebar__inner {
+    padding-right: 0.4rem !important;
+  }
+}
+
+.md-sidebar__inner {
+  padding-right: 0.4rem !important;
+}
+
+/* ── 4. Ellipsis on long nav titles ──────────────────────────────────────── */
+/* Material 9.7+ does not truncate long titles in the nav — they wrap across
+   multiple lines and push the fold chevron out of alignment. */
+.md-nav__link .md-ellipsis {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 5. Tab dropdown CSS ─────────────────────────────────────────────────── */
+/* Styles for dropdown menus injected by nav-dropdown.js on tab items that
+   contain nested sub-sections. */
+.md-tabs__item--has-dropdown {
+  position: relative;
+}
+
+.md-tabs__dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0;
+  background-color: var(--md-primary-fg-color--dark);
+  min-width: 11rem;
+  border-radius: 0 0 0.2rem 0.2rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.md-tabs__item--has-dropdown:hover .md-tabs__dropdown {
+  display: block;
+}
+
+.md-tabs__dropdown li a {
+  display: block;
+  padding: 0.45rem 1rem;
+  color: var(--md-primary-bg-color);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0.85;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.md-tabs__dropdown li a:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.15);
+}

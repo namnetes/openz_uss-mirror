@@ -1,0 +1,6 @@
+site/
+.mkdocs.log
+.mkdocs.pid
+__pycache__/
+*.pyc
+.venv/
