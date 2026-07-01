@@ -2,7 +2,8 @@
 
 !!! info "Projet de résilience CI/CD Mainframe"
     Ce projet s'inscrit dans un programme de modernisation de la chaîne CI/CD
-    pour l'environnement IBM Mainframe.
+    (*Continuous Integration / Continuous Delivery*) pour l'environnement IBM
+    Mainframe.
 
 ## Contexte et objectifs
 
@@ -34,7 +35,8 @@ externes deviennent inaccessibles.
 -   :material-sitemap: **[Architecture](architecture/index.md)**
 
     Les composants techniques prévus pour la résilience de la chaîne
-    CI/CD — synchronisation USS, mode dégradé, supervision.
+    CI/CD — synchronisation USS (*Unix System Services*), mode dégradé,
+    supervision.
 
 -   :material-telescope: **[Perspectives et synergies](perspectives.md)**
 

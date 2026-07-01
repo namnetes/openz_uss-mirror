@@ -24,11 +24,17 @@ Une ligne de développement indépendante au sein d'un même projet — par exem
 **CI/CD**
 *Continuous Integration / Continuous Delivery* — l'ensemble des étapes automatisées qui transforment un code source en un programme testé, packagé et prêt à être déployé en production (compilation, tests, packaging, promotion).
 
+**CICS**
+*Customer Information Control System* — le moniteur transactionnel IBM Mainframe qui exécute les programmes traitant les transactions en ligne (par opposition aux traitements batch). Les nouveaux développements CICS peuvent être écrits en Java, packagés sous forme de *bundle* OSGi (voir plus bas).
+
 **Commit (Git)**
 Un instantané enregistré du code à un moment donné, avec un message expliquant ce qui a changé. Chaque commit possède un identifiant unique (le *hash*, voir plus bas).
 
 **Container**
 Un environnement logiciel isolé et léger, qui embarque une application et tout ce dont elle a besoin pour fonctionner, sans dépendre du reste du système qui l'héberge.
+
+**Copybook**
+Un fichier COBOL (ou C) contenant des déclarations de données ou du code réutilisable, inclus dans un ou plusieurs programmes au moment de la compilation (instruction `COPY`). Un copybook n'est pas compilé seul : il n'a pas de binaire propre, et sa modification impose de recompiler tous les programmes qui l'incluent.
 
 ## D
 
@@ -42,6 +48,9 @@ Le composant qui permet à un programme d'interroger ou de mettre à jour DB2 vi
 *Digital Operational Resilience Act* — un règlement européen qui impose aux établissements financiers de pouvoir continuer à fonctionner, ou se reconstruire rapidement, en cas d'incident informatique majeur (panne, cyberattaque).
 
 ## G
+
+**Gigue (*jitter*)**
+Un léger décalage, imprévisible d'une exécution à l'autre, entre le moment où une tâche périodique *devrait* s'exécuter et le moment où elle s'exécute *réellement* — par exemple un job planifié censé tourner toutes les 5 minutes mais qui démarre parfois avec quelques secondes ou minutes de retard, selon la charge du système. Une marge de sécurité (comme un seuil d'alerte plus large que la fréquence de contrôle) permet d'absorber cette gigue sans déclencher de fausse alerte.
 
 **Git**
 Un outil qui permet de suivre l'historique des modifications d'un code source : qui a changé quoi, quand, et de revenir en arrière si besoin. C'est la brique de base sur laquelle GitLab est construit.
@@ -57,7 +66,13 @@ Une suite de caractères qui identifie de façon unique un état précis du code
 **Heartbeat**
 Un signal envoyé à intervalle régulier pour prouver qu'un service est toujours actif. Si le signal s'arrête, c'est le signe que quelque chose ne fonctionne plus, même sans message d'erreur explicite.
 
+**HLASM**
+*High Level Assembler* — le langage assembleur utilisé sur Mainframe, le plus proche du fonctionnement matériel du processeur. Comme pour le COBOL, un source HLASM est compilé (assemblé puis linké) en un load module.
+
 ## I
+
+**IDR (Identification Record)**
+Une zone du load module ou du *program object*, prévue par IBM dans le format binaire, où le *binder* inscrit automatiquement sa propre version et la date du link-edit — et la date de compilation si le compilateur la fournit. L'instruction `IDENTIFY` du binder permet d'y ajouter du texte libre (jusqu'à 80 caractères) sans toucher au source : c'est ce mécanisme que ChangeMan réutilise pour y inscrire l'identifiant de package. Consultable via l'option `LISTIDR` de l'utilitaire AMBLIST.
 
 **Idempotent**
 Une opération est dite idempotente quand la répéter plusieurs fois produit toujours le même résultat que l'exécuter une seule fois — sans effet de bord supplémentaire. Par exemple, traiter deux fois le même événement de push ne crée pas deux workspaces, ni n'applique deux fois le même changement.
@@ -90,10 +105,23 @@ Une copie d'un ensemble de données, maintenue à jour en continu et destinée �
 **Mode dégradé**
 Un mode de fonctionnement temporaire, activé quand un système habituel (ici GitLab) est indisponible, qui permet de continuer les opérations essentielles via des procédures de secours, en attendant le retour à la normale.
 
+## N
+
+**Native SQL Procedure**
+Une procédure stockée DB2 for z/OS écrite directement en SQL (`CREATE PROCEDURE ... LANGUAGE SQL`), sans passer par un langage hôte comme COBOL ou Java. Le source est compilé par DB2 lui-même et stocké comme *package* dans son propre catalogue — il n'existe pas de load module externe pour ce type de procédure, contrairement à une procédure stockée *externe* (COBOL/Java) qui en produit bien un.
+
+## O
+
+**OSGi (bundle)**
+*Open Service Gateway initiative* — une norme Java qui permet de packager du code sous forme de **bundles** : des modules autonomes, versionnés, qui déclarent explicitement ce qu'ils utilisent et ce qu'ils exposent. C'est le format utilisé pour les nouveaux développements de transactions CICS en Java sur cette plateforme — un bundle agrège plusieurs classes Java, l'unité de build et de déploiement étant le bundle, pas la classe individuelle.
+
 ## P
 
 **Package**
 Une unité de livraison versionnée — l'ensemble cohérent de changements de code regroupés pour être construits, testés et déployés ensemble, identifié par un numéro unique.
+
+**Panel ISPF**
+Un écran de saisie ou d'affichage défini dans un membre PDS (*Partitioned Data Set* — une bibliothèque de membres sur Mainframe), interprété à l'exécution par ISPF (*Interactive System Productivity Facility*, l'environnement interactif du Mainframe) — pas compilé ni linké comme un programme. Il n'existe donc pas de binaire à proprement parler pour un panel : seule la version du membre source fait foi.
 
 **PassTicket**
 Un mécanisme de sécurité Mainframe qui permet à un programme de prouver son identité auprès d'un autre composant interne (par exemple DB2) sans avoir à stocker ou transmettre un mot de passe en clair, en utilisant un secret partagé à usage unique.
@@ -101,7 +129,10 @@ Un mécanisme de sécurité Mainframe qui permet à un programme de prouver son 
 ## R
 
 **RACF**
-Le système de sécurité du Mainframe qui gère les identités, les habilitations et les autorisations d'accès — l'équivalent, pour le Mainframe, d'un système de gestion des comptes et des droits.
+*Resource Access Control Facility* — le système de sécurité du Mainframe qui gère les identités, les habilitations et les autorisations d'accès — l'équivalent, pour le Mainframe, d'un système de gestion des comptes et des droits.
+
+**REXX**
+*Restructured Extended Executor* — un langage de script interprété, utilisé sur le Mainframe pour automatiser des tâches (par exemple piloter des panels ISPF). Comme les panels ISPF, un source REXX n'est pas compilé en binaire : il est exécuté directement.
 
 **Réconciliation**
 Une vérification périodique qui compare l'état réellement enregistré (par exemple sur USS) avec une source de référence (GitLab), pour détecter et corriger automatiquement les écarts.

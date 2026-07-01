@@ -1,14 +1,14 @@
 # Gestion des incidents et reprise
 
 !!! warning "En cours de spécification"
-    Cette page décrit le runbook prévu pour le service de synchronisation USS, qui n'est pas encore implémenté.
+    Cette page décrit le runbook prévu pour le service de synchronisation USS (*Unix System Services*), qui n'est pas encore implémenté.
 
 !!! info "Prérequis"
-    Cette page suppose une connaissance du mécanisme de synchronisation décrit dans [Résilience et synchronisation USS](resilience.md) : webhooks GitLab, heartbeat DB2, cycle de vie d'une branche et réconciliation périodique.
+    Cette page suppose une connaissance du mécanisme de synchronisation décrit dans [Résilience et synchronisation USS](resilience/index.md) : webhooks GitLab, heartbeat DB2, cycle de vie d'une branche et réconciliation périodique.
 
 ## Incident sur zCX — que se passe-t-il pendant la panne ?
 
-Quand le container zCX hébergeant le service de sync est indisponible, GitLab tente de délivrer les webhooks mais reçoit une erreur de connexion. GitLab rejoue automatiquement les webhooks en échec selon un calendrier décroissant :
+Quand le container zCX (*z/OS Container Extensions*) hébergeant le service de sync est indisponible, GitLab tente de délivrer les webhooks mais reçoit une erreur de connexion. GitLab rejoue automatiquement les webhooks en échec selon un calendrier décroissant :
 
 | Tentative | Délai depuis l'échec précédent |
 |---|---|
@@ -20,7 +20,7 @@ Quand le container zCX hébergeant le service de sync est indisponible, GitLab t
 
 **Fenêtre de grâce totale : environ 3 heures et demie.** Si le service redémarre dans cette fenêtre, GitLab rejoue les webhooks en attente et USS se resynchronise automatiquement, sans intervention manuelle.
 
-Le **heartbeat DB2** (voir [Résilience et synchronisation USS](resilience.md#heartbeat-db2-detection-quasi-temps-reel)) détecte l'indisponibilité bien avant l'expiration de cette fenêtre — en quelques minutes, dès que `SYNC_STATUS` ne reçoit plus d'écriture — et alerte l'équipe d'exploitation pendant qu'il reste encore largement le temps d'agir avant que GitLab n'abandonne les relances.
+Le **heartbeat DB2** (voir [Résilience et synchronisation USS](resilience/detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) détecte l'indisponibilité bien avant l'expiration de cette fenêtre — sous ~20 minutes, dès que le service cesse d'écrire son propre signal de vie dans `SYNC_SERVICE_HEARTBEAT` — et alerte l'équipe d'exploitation pendant qu'il reste encore largement le temps d'agir avant que GitLab n'abandonne les relances.
 
 Au-delà de cette fenêtre, les événements webhook sont définitivement perdus côté GitLab. USS peut alors être en retard sur plusieurs commits. La réconciliation périodique détecte cet écart résiduel à sa prochaine exécution et déclenche une resynchronisation automatique — mais si l'incident a duré plusieurs heures, une vérification manuelle reste recommandée.
 
@@ -36,7 +36,7 @@ Au-delà de cette fenêtre, les événements webhook sont définitivement perdus
 
 Ce cas est différent d'une panne zCX : c'est ici **GitLab lui-même** qui est inaccessible, pas seulement le service de sync. USS reste lisible (dernier état synchronisé avant la panne), mais reste strictement **en lecture** — seul le mécanisme de synchronisation est autorisé à écrire sur USS, jamais un opérateur, y compris en mode dégradé.
 
-Toutes les actions habituellement portées par la chaîne CI/CD GitLab (build, packaging, promotion, déploiement) doivent pouvoir continuer à s'exécuter à partir du dernier état synchronisé sur USS, mais **hors GitLab**, via des procédures dégradées ou manuelles équivalentes à ce qui existait déjà sous ChangeMan.
+Toutes les actions habituellement portées par la chaîne CI/CD (*Continuous Integration / Continuous Delivery*) GitLab (build, packaging, promotion, déploiement) doivent pouvoir continuer à s'exécuter à partir du dernier état synchronisé sur USS, mais **hors GitLab**, via des procédures dégradées ou manuelles équivalentes à ce qui existait déjà sous ChangeMan.
 
 Comme sous ChangeMan, où chacune de ces actions dégradées était tracée dans une log dédiée, ce même besoin s'applique ici : toute action exécutée hors GitLab pendant la panne (qui, quoi, sur quelle application/branche/package, quand) doit être enregistrée dans un **journal dédié au mode dégradé**, distinct du journal de synchronisation normal. Ce journal sert de base, au retour de GitLab, pour reporter manuellement dans GitLab l'ensemble des actions effectuées pendant la panne (commits, tags, statuts de déploiement) et restaurer la cohérence entre GitLab et la réalité de production.
 
@@ -76,7 +76,7 @@ DY07   pkg/PKG-20260617-0001   c44f2b11    e72a9d05     ✗ RETARD (2 commits)
 1 écart détecté — resynchronisation déclenchée automatiquement
 ```
 
-Ce rapport est archivé dans un journal horodaté sur USS, consultable par les auditeurs.
+Ce rapport est archivé sur USS dans un fichier horodaté dédié — distinct du [journal de synchronisation](resilience/service-synchronisation.md#journalisation-des-operations), qui trace chaque opération individuelle plutôt qu'un instantané global — et consultable par les auditeurs.
 
 ---
 
@@ -114,11 +114,8 @@ for branch in $GITLAB_BRANCHES; do
     else
         uss_head=$(git -C "$workspace" rev-parse HEAD)
         if [ "$uss_head" != "$gitlab_head" ]; then
-            # reset --hard (et non pull) garantit que USS reflète exactement
-            # GitLab même si le workspace a été modifié manuellement —
-            # USS est un miroir réglementaire, pas un espace de travail libre.
             git -C "$workspace" fetch
-            git -C "$workspace" reset --hard "origin/$branch"
+            git -C "$workspace" reset --hard "origin/$branch"  # (1)!
             log "MIS À JOUR  $APP/$branch  $uss_head → $gitlab_head"
         else
             log "OK  $APP/$branch  $uss_head"
@@ -136,7 +133,9 @@ for workspace in $USS_BASE/*/; do
 done
 ```
 
-Chaque opération est journalisée avec l'horodatage, le hash avant et le hash après. Ce journal constitue la preuve d'audit de la reprise.
+1. `reset --hard` (et non `pull`) garantit que USS reflète exactement GitLab même si le workspace a été modifié manuellement — USS est un miroir réglementaire, pas un espace de travail libre.
+
+Chaque appel à `log` ci-dessus écrit en réalité une entrée dans le [journal de synchronisation](resilience/service-synchronisation.md#journalisation-des-operations) — même format JSON Lines que le flux webhook normal, avec `"source": "reconciliation"` — plutôt qu'une simple ligne de texte : le pseudo-code ci-dessus simplifie l'appel pour rester lisible. Ce journal, horodaté avec le hash avant et après chaque opération, constitue la preuve d'audit de la reprise.
 
 ??? info "Durée d'une vérification et d'une resynchronisation complète (détail optionnel)"
     **Vérification (600 branches)**
