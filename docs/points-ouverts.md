@@ -6,6 +6,27 @@
 !!! info "Prérequis"
     Cette page suppose une connaissance des mécanismes déjà posés dans [Résilience et synchronisation USS](architecture/resilience/index.md) et [Détection et gestion des défauts de synchro](architecture/resilience/detection-defauts.md) : DRS, RACF, heartbeat DB2, réconciliation périodique.
 
+## Cadrage du SLA 99,99 % et dispositif de mitigation
+
+Le [SLA](glossaire.md#sla) de 99,99 % visé par la plateforme porte sur la disponibilité globale du Mainframe et de ses applications — un niveau historiquement assuré nativement par l'infrastructure z/OS — et non sur le service de synchronisation USS pris isolément.
+
+Le miroir USS a pour rôle de préserver ce SLA global en absorbant les indisponibilités de GitLab (une infrastructure externe au périmètre z/OS) via le mode dégradé : tant que GitLab répond, le mécanisme de synchronisation fonctionne normalement ; s'il tombe, USS permet de continuer à builder, promouvoir et déployer depuis le dernier état synchronisé, sans que cette panne externe ne se répercute sur la disponibilité perçue des applications Mainframe.
+
+La vraie question de disponibilité à trancher n'est donc pas « le service de sync tient-il 99,99 % ? » mais « le mode dégradé se déclenche-t-il assez vite et de façon assez fiable pour que l'indisponibilité de GitLab ne se répercute jamais sur la disponibilité perçue des applications Mainframe elles-mêmes ? ». C'est cette question — la fiabilité du dispositif de mitigation lui-même — qui structure la section suivante.
+
+## Fiabilité du dispositif de mitigation (constats de l'analyse technique)
+
+Une analyse technique récente de l'architecture de résilience, menée au regard du SLA cadré ci-dessus, a mis en évidence plusieurs zones d'ombre sur la fiabilité du mode dégradé lui-même — c'est-à-dire sur sa capacité à effectivement absorber une indisponibilité de GitLab sans délai ni échec :
+
+- Aucun RTO ni RPO n'est formellement engagé pour le service de synchronisation ni pour la procédure de resynchronisation — les seuls chiffres documentés (heartbeat, fenêtre de grâce GitLab, cadence de réconciliation) sont des délais de détection, jamais des engagements de résolution.
+- Aucune auto-remédiation n'est prévue : rien n'indique que le container zCX redémarre automatiquement en cas de panne, ce qui fait reposer toute reprise sur une intervention humaine.
+- Cette intervention humaine repose sur un opérateur sans astreinte, MTTA/MTTR ni couverture horaire documentés ; le canal d'alerte actuel (BAL email) est potentiellement inadapté à un besoin de réaction urgente.
+- Aucun test de charge, de bascule ou de reprise n'a été mené à ce jour : l'estimation « resynchronisation complète sous la minute pour 600 branches » (voir [Resynchronisation complète](architecture/gestion-incidents.md#resynchronisation-complete)) reste un calcul théorique, jamais mesuré en conditions réelles.
+- La capacité de montée en charge du service de sync n'est pas modélisée : aucun débit maximal, aucune stratégie d'absorption de pic (ex. déclenché par une recompilation de masse générant de nombreux événements en rafale) n'est documentée.
+- La résilience du réseau inter-datacenters n'est jamais analysée comme surface de panne propre (partition réseau, split-brain), alors qu'elle conditionne la sûreté d'une future topologie actif/actif (voir [Topologie du service de sync entre les deux datacenters](#topologie-du-service-de-sync-entre-les-deux-datacenters) plus bas dans ce même fichier).
+- Aucun monitoring applicatif réel n'existe au-delà de l'alerte binaire du heartbeat : pas de tableau de bord, pas de suivi de budget d'erreur, pas de télémétrie sur l'âge du dernier événement traité par branche.
+- La cadence de réconciliation (« potentiellement journalière ») reste à réévaluer : c'est le seul filet de rattrapage pour un bug applicatif ciblé ou une dérive de configuration GitLab, avec un délai de correction potentiel de plusieurs heures (voir [Comportement quand DB2/DRS est indisponible alors que zCX fonctionne](#comportement-quand-db2drs-est-indisponible-alors-que-zcx-fonctionne) pour le mécanisme de réconciliation lui-même).
+
 ## Politique de purge du dépôt git
 
 Le cas de la **suppression totale d'un dépôt applicatif** (arrêt définitif d'une application, ou migration de version majeure vers une nouvelle application distincte) est désormais tranché, voir [Suppression totale d'un dépôt applicatif](perspectives.md#suppression-totale-dun-depot-applicatif) — le déclencheur est métier (gestionnaire du patrimoine applicatif) et la décision est binaire.

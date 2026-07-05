@@ -189,6 +189,9 @@ Un anglicisme désignant une procédure documentée, pas à pas, indiquant quoi 
 **SI**{: #si }
 *Système d'Information* — l'ensemble des ressources (matériels, logiciels, données, procédures) qui permettent à une organisation de collecter, traiter et faire circuler l'information nécessaire à son activité.
 
+**SLA**{: #sla }
+*Service Level Agreement* — un engagement chiffré de niveau de service, ici la disponibilité (ex. 99,99 %, soit environ 52 minutes d'indisponibilité tolérée par an). Dans cette documentation, le SLA de 99,99 % vise la disponibilité globale du Mainframe et de ses applications — un niveau historiquement atteint nativement par l'infrastructure z/OS. La modernisation (recours à GitLab et à des briques hors z) introduit une dépendance externe qui pourrait dégrader ce niveau ; le miroir USS est le dispositif de mitigation qui permet de continuer à tenir ce SLA via un mode dégradé, en cas d'indisponibilité de ces briques externes.
+
 **STC**{: #stc }
 *Started Task* — un type de tâche Mainframe démarrée automatiquement par le système d'exploitation plutôt que par un utilisateur, et destinée à tourner en continu (par opposition à un job batch, qui se termine une fois son traitement achevé).
 
