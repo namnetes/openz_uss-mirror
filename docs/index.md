@@ -59,7 +59,8 @@ externes deviennent inaccessibles.
 
 -   :material-progress-question: **[Points non couverts](points-ouverts.md)**
 
-    Les questions d'architecture identifiées mais pas encore tranchées.
+    Questions d'architecture à trancher, constats de fiabilité technique et
+    points de conformité réglementaire à formaliser.
 
 </div>
 
