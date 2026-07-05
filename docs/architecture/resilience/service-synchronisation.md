@@ -3,7 +3,7 @@
 !!! info "Prérequis"
     Cette page suppose une connaissance de [La contrainte de départ et les workspaces USS](index.md).
 
-La synchronisation est **découplée du pipeline de build**. Un pipeline peut être annulé, échouer ou être manuellement skippé — la sync USS doit se produire quoi qu'il arrive.
+La synchronisation est **découplée du pipeline de build**. Un pipeline peut être annulé, échouer ou être manuellement ignoré — la sync USS doit se produire quoi qu'il arrive.
 
 Le service de sync est un composant dédié qui tourne dans un container **zCX** (*z/OS Container Extensions* — la technologie qui permet de faire tourner des containers Linux sur z/OS) et réagit aux **webhooks GitLab** : des notifications HTTP que GitLab envoie sur chaque événement de dépôt, indépendamment de tout pipeline.
 
@@ -18,11 +18,13 @@ Le service de sync est un composant dédié qui tourne dans un container **zCX**
     Dans tous ces cas, GitLab produit le même événement serveur (`push`, `create`, `delete`) et émet le même webhook vers le service de sync. La résilience décrite dans cette section (relances automatiques, heartbeat DB2, réconciliation périodique) s'applique donc indépendamment du canal d'accès au dépôt.
 
 !!! info "Comment GitLab détecte qu'un webhook a échoué"
-    GitLab ne sonde pas activement la disponibilité du service de sync : il le découvre **au moment où il essaie réellement de livrer un événement**. Le service doit répondre par un code HTTP **2xx** dans un délai limité (~10 secondes) ; tout code 4xx/5xx, time-out ou refus de connexion est considéré comme un échec et déclenche le calendrier de relance (1 min, 5 min, 10 min, 100 min, 100 min). Chaque tentative — code retour inclus — est consultable dans GitLab via *Settings → Webhooks → Edit → Recent Deliveries*, avec un bouton "Resend" pour rejouer manuellement.
+    GitLab ne sonde pas activement la disponibilité du service de sync : il le découvre **au moment où il essaie réellement de livrer un événement**. Le service doit répondre par un code HTTP **2xx** dans un délai limité (~10 secondes) ; tout code 4xx/5xx, time-out ou refus de connexion est considéré comme un échec et déclenche le calendrier de relance (1 min, 5 min, 10 min, 100 min, 100 min). Chaque tentative — code retour inclus — est consultable dans GitLab via *Settings → Webhooks → Edit → Recent Deliveries*, avec un bouton `Resend` pour rejouer manuellement.
 
     C'est donc un mécanisme de détection **par événement**, pas un heartbeat continu : si aucune branche n'est touchée pendant la panne, GitLab ne "voit" pas le service de sync indisponible. C'est le rôle du **heartbeat DB2** (voir [Détection et gestion des défauts de synchro](detection-defauts.md)) de combler ce trou en quasi temps réel, sans attendre un événement GitLab ni un job planifié.
 
 ## Vue d'ensemble
+
+Le schéma suivant résume les acteurs et échanges du mécanisme :
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"background": "#ffffff"}}}%%
@@ -65,6 +67,7 @@ flowchart TD
         L1([Utilisateur]):::startStop
         L2[Traitement]:::logic
         L3[/Données · Fichiers/]:::data
+        L5[(Base de données)]:::data
         L4[[Service externe]]:::external
     end
 ```
@@ -133,6 +136,8 @@ Trois points que ce diagramme rend visibles, là où le tableau ne le pouvait pa
 
     Ce cas n'est pas traité comme une erreur, mais **pas parce que `git worktree add` saurait gérer tout seul un dossier déjà existant** — il ne le sait pas : appelée sur un chemin où un worktree existe déjà, cette commande échoue (`fatal: '<path>' already exists`). L'idempotence vient d'une **vérification explicite** faite par le script avant d'agir, la même que celle utilisée par la [resynchronisation complète](../gestion-incidents.md#resynchronisation-complete) :
 
+    Dans le script ci-dessous, `$workspace` désigne le chemin du workspace introduit plus haut (`/u/gitlab/<app>/workspaces/<branche-converti>`), `$branch` le nom de branche GitLab avant conversion, et `$commit_hash` le commit visé par l'événement.
+
     ```bash
     if [ ! -d "$workspace" ]; then
         git worktree add "$workspace" "$branch"   # seulement si le dossier n'existe pas encore
@@ -166,7 +171,7 @@ Toute opération réalisée par le service de sync sur un workspace USS — cré
 Un format structuré plutôt qu'un texte libre, pour rester exploitable par un outil d'audit sans dépendre d'un parsing ad hoc. Une ligne JSON autonome par opération plutôt qu'un CSV, pour ne pas avoir à gérer l'échappement d'un nom de branche qui peut contenir `/`, espaces ou tout autre caractère valide en Git. Un fichier par application plutôt qu'un journal global, cohérent avec l'indépendance déjà actée entre les ~600 dépôts (voir [Les workspaces USS](index.md#les-workspaces-uss-une-branche-un-repertoire)) : 600 processus concurrents n'écrivent alors jamais dans le même fichier.
 
 !!! info "jq est déjà disponible sur USS"
-    `jq` est présent nativement sur l'USS du z/OS de cette plateforme. Un journal en JSON Lines est donc directement interrogeable en ligne de commande par un opérateur ou un auditeur (filtrage par branche, par plage d'horodatage, par résultat), sans script de parsing dédié ni outil supplémentaire à installer.
+    `jq`, l'outil standard de requêtage JSON en ligne de commande, est présent nativement sur l'USS du z/OS de cette plateforme. Un journal en JSON Lines est donc directement interrogeable en ligne de commande par un opérateur ou un auditeur (filtrage par branche, par plage d'horodatage, par résultat), sans script de parsing dédié ni outil supplémentaire à installer.
 
 ```json
 {"ts": "2026-06-17T14:32:07Z", "branch": "pkg/PKG-20260616-0042", "event": "PUSH", "source": "webhook", "commit_before": "a3f7c1d2...", "commit_after": "b91e4a03...", "result": "OK"}
@@ -195,7 +200,7 @@ Ce même journal sert de source à la fois au fonctionnement normal (webhooks) e
 !!! note "Base de calcul — à affiner plus tard avec les chiffres réels"
     Cette estimation part de deux chiffres connus (50 000 programmes actifs, ~10 % du patrimoine modifié par an) et de plusieurs hypothèses explicites pour combler ce qui n'est pas mesuré. Elle vise un ordre de grandeur, pas une précision — mais l'ordre de grandeur suffit à trancher.
 
-**Ce qu'on sait** : 50 000 programmes actifs, ~10 % modifiés par an → **5 000 programmes modifiés/an**. Le patrimoine réel ne se limite pas aux programmes : il inclut aussi les **copybooks**, des **PAR JCL** et des procédures stockées, versionnés au même titre et donc générateurs d'activité git propre, **non comptés** dans les 50 000 programmes. Faute de décompte précis pour ces familles, on élargit la borne haute d'environ 50 % par prudence plutôt que de les ignorer : **~7 500 unités modifiées/an**.
+**Ce qu'on sait** : 50 000 programmes actifs, ~10 % modifiés par an → **5 000 programmes modifiés/an**. Le patrimoine réel ne se limite pas aux programmes : il inclut aussi les **copybooks**, des **PAR JCL** (*Job Control Language*) et des procédures stockées, versionnés au même titre et donc générateurs d'activité git propre, **non comptés** dans les 50 000 programmes. Faute de décompte précis pour ces familles, on élargit la borne haute d'environ 50 % par prudence plutôt que de les ignorer : **~7 500 unités modifiées/an**.
 
 **Ce qu'il faut estimer** : un "programme/copybook/PAR modifié" n'est pas un événement git — plusieurs unités peuvent être touchées dans un même package/branche, et un package génère plusieurs `PUSH` avant merge (itérations de dev, retours de code review), plus 1 `CREATE` et 1 `DELETE`.
 
