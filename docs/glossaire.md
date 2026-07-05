@@ -5,6 +5,9 @@
 
 ## A
 
+**AMBLIST**{: #amblist }
+Un utilitaire IBM standard qui permet d'inspecter le contenu d'un load module — notamment ses IDR — sans avoir besoin de l'exécuter, via son option `LISTIDR`.
+
 **API REST**{: #api-rest }
 Un moyen standardisé pour deux logiciels de se parler à travers le réseau, en s'échangeant de courts messages structurés (souvent au format JSON). GitLab expose ainsi une API REST qui permet d'interroger ou de piloter un dépôt sans passer par l'interface web.
 
@@ -18,6 +21,9 @@ Une boîte aux lettres électronique partagée par une équipe ou un service, pa
 
 **Bijection (source ↔ load)**{: #bijection-source-load }
 Le fait de pouvoir établir, sans ambiguïté et dans les deux sens, quel code source a produit quel binaire de production, et inversement. C'est une exigence d'audit : on doit pouvoir remonter du binaire qui tourne en production jusqu'au code exact qui l'a généré.
+
+**Binder**{: #binder }
+L'utilitaire z/OS qui réalise l'édition de liens (*link-edit*) : il assemble un ou plusieurs object decks compilés en un seul load module exécutable, et peut y inscrire automatiquement des métadonnées (version, date) dans son IDR.
 
 **Branche (Git)**{: #branche-git }
 Une ligne de développement indépendante au sein d'un même projet — par exemple, une branche par correctif ou par nouvelle fonctionnalité, qui n'affecte pas le code des autres branches tant qu'elle n'est pas fusionnée.
@@ -43,6 +49,9 @@ Un environnement logiciel isolé et léger, qui embarque une application et tout
 Un fichier COBOL (ou C) contenant des déclarations de données ou du code réutilisable, inclus dans un ou plusieurs programmes au moment de la compilation (instruction `COPY`). Un copybook n'est pas compilé seul : il n'a pas de binaire propre, et sa modification impose de recompiler tous les programmes qui l'incluent.
 
 ## D
+
+**Data sharing (DB2)**{: #data-sharing-db2 }
+Une configuration DB2 for z/OS où plusieurs instances du gestionnaire de base de données, réparties sur différents systèmes, accèdent en écriture concurrente aux mêmes données partagées, avec une vue cohérente garantie entre elles — utilisée pour la haute disponibilité entre datacenters.
 
 **DB2 for z/OS**{: #db2-for-z-os }
 La base de données utilisée par la plateforme Mainframe pour stocker de façon fiable des informations de suivi (par exemple : quel commit est actuellement synchronisé sur quelle branche).
@@ -89,6 +98,9 @@ Une opération est dite idempotente quand la répéter plusieurs fois produit to
 **IG (Inspection Générale)**{: #ig-inspection-generale }
 La fonction d'audit interne de l'établissement, chargée de vérifier que les règles de contrôle et de gestion des risques sont bien respectées. Certaines de ses recommandations (comme l'exigence de bijection source/binaire) s'imposent aux projets informatiques.
 
+**Impersonation**{: #impersonation }
+Un mécanisme d'API où un compte de service peut agir « pour le compte » d'un autre utilisateur identifié, tout en conservant la traçabilité de l'identité réelle à l'origine de l'action.
+
 **ISO (état)**{: #iso-etat }
 Dans cette documentation, ne désigne pas la norme ISO mais le sens littéral d'« identique » : un workspace USS est dit « ISO » lorsqu'il contient exactement le même code que la branche GitLab correspondante.
 
@@ -110,6 +122,9 @@ Le programme compilé, prêt à être exécuté, obtenu après compilation et é
 **Mainframe**{: #mainframe }
 Un ordinateur central de très grande capacité, utilisé dans les environnements bancaires pour sa fiabilité et sa puissance de traitement. Le système d'exploitation utilisé ici est z/OS (voir plus bas).
 
+**Matière z**{: #matiere-z }
+Une expression familière désignant l'ensemble du patrimoine applicatif Mainframe, par opposition aux technologies « hors z » (serveurs modernes, systèmes distribués). « Consommer de la matière z » signifie utiliser de la capacité de traitement Mainframe — une ressource rare et coûteuse, à réserver aux tâches qui en ont réellement besoin.
+
 **Mia Discovery**{: #mia-discovery }
 Le logiciel de cartographie applicative du patrimoine — il dresse l'inventaire des applications et de leurs composants, indépendamment de ce projet de miroir USS.
 
@@ -129,6 +144,9 @@ Une procédure stockée DB2 for z/OS écrite directement en SQL (`CREATE PROCEDU
 
 ## O
 
+**Object deck**{: #object-deck }
+Le fichier binaire intermédiaire produit par un compilateur (COBOL, HLASM...) avant l'édition de liens — pas encore exécutable seul, il doit être assemblé avec d'éventuels autres object decks par le binder pour former un load module.
+
 **OSGi (bundle)**{: #osgi-bundle }
 *Open Service Gateway initiative* — une norme Java qui permet de packager du code sous forme de **bundles** : des modules autonomes, versionnés, qui déclarent explicitement ce qu'ils utilisent et ce qu'ils exposent. C'est le format utilisé pour les nouveaux développements de transactions CICS en Java sur cette plateforme — un bundle agrège plusieurs classes Java, l'unité de build et de déploiement étant le bundle, pas la classe individuelle.
 
@@ -145,6 +163,9 @@ Un membre JCL (*Job Control Language* — le langage de script qui décrit l'enc
 
 **PassTicket**{: #passticket }
 Un mécanisme de sécurité Mainframe qui permet à un programme de prouver son identité auprès d'un autre composant interne (par exemple DB2) sans avoir à stocker ou transmettre un mot de passe en clair, en utilisant un secret partagé à usage unique.
+
+**Personal Access Token (jeton d'accès personnel)**{: #personal-access-token-jeton-dacces-personnel }
+Un jeton d'authentification généré individuellement par un utilisateur GitLab, utilisable à la place d'un mot de passe pour les appels API ou les commandes Git en ligne de commande.
 
 **Plan de continuité et de reprise d'activité**{: #plan-de-continuite-et-de-reprise-dactivite }
 Le dispositif global d'un établissement bancaire qui définit comment l'activité continue ou reprend après un sinistre majeur (panne, catastrophe, cyberattaque). Le miroir USS décrit dans cette documentation en est l'un des dispositifs, à l'échelle de la chaîne CI/CD.

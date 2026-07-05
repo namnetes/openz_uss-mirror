@@ -23,7 +23,7 @@ L'infrastructure z/OS est en haute disponibilité sur deux datacenters, ce qui c
 
 - Fonctionne-t-il en actif/actif (une instance par datacenter, toutes deux capables de traiter des webhooks) ou en actif/passif (bascule sur panne du site primaire) ?
 - Si actif/actif, comment éviter qu'un même webhook GitLab soit traité en double par les deux instances (verrou distribué, bascule au niveau de l'URL du webhook côté load balancer) ?
-- `SYNC_SERVICE_HEARTBEAT` (voir [Heartbeat DB2](architecture/resilience/detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) est-il visible de façon cohérente depuis les deux sites (data sharing DB2), pour que la détection de panne reste fiable indépendamment du site actif ? Et surtout : sa conception actuelle (**une seule ligne**) suppose une seule instance du service — en actif/actif, les deux instances écriraient dans cette même ligne, et la mort d'un site passerait inaperçue tant que l'autre continue de pinguer. Il faudrait alors une ligne par instance (avec un identifiant de site ou d'instance), ce qui reste à concevoir si l'actif/actif est retenu.
+- `SYNC_SERVICE_HEARTBEAT` (voir [Heartbeat DB2](architecture/resilience/detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) est-il visible de façon cohérente depuis les deux sites ([data sharing](glossaire.md#data-sharing-db2) DB2), pour que la détection de panne reste fiable indépendamment du site actif ? Et surtout : sa conception actuelle (**une seule ligne**) suppose une seule instance du service — en actif/actif, les deux instances écriraient dans cette même ligne, et la mort d'un site passerait inaperçue tant que l'autre continue de pinguer. Il faudrait alors une ligne par instance (avec un identifiant de site ou d'instance), ce qui reste à concevoir si l'actif/actif est retenu.
 
 ## Correctif d'urgence pendant une panne GitLab
 
@@ -68,8 +68,8 @@ Le [catalogue des pannes et conséquences](architecture/resilience/pannes-et-con
 
 Sous [ChangeMan](glossaire.md#changeman), développeurs et équipes support agissent toujours avec leurs **droits RACF (*Resource Access Control Facility*) personnels**, jamais via un utilisateur technique générique — voir [Recompilation de masse du patrimoine](perspectives.md#recompilation-de-masse-du-patrimoine). Ce principe d'imputabilité individuelle doit être repris pour les outils interactifs côté Git (recompilation de masse, prise d'image sélective), mais le mécanisme technique reste à choisir :
 
-- **Jeton d'accès personnel GitLab** (*Personal Access Token*) généré par chaque utilisateur : simple, mais pose la question de la durée de vie et du renouvellement du jeton.
-- ***Impersonation*** côté API GitLab (un compte de service agissant "pour le compte de" l'utilisateur, avec traçabilité de l'identité réelle dans les logs GitLab) : nécessite des droits d'administration élevés sur l'instance GitLab.
+- **Jeton d'accès personnel GitLab** ([*Personal Access Token*](glossaire.md#personal-access-token-jeton-dacces-personnel)) généré par chaque utilisateur : simple, mais pose la question de la durée de vie et du renouvellement du jeton.
+- [***Impersonation***](glossaire.md#impersonation) côté API GitLab (un compte de service agissant "pour le compte de" l'utilisateur, avec traçabilité de l'identité réelle dans les logs GitLab) : nécessite des droits d'administration élevés sur l'instance GitLab.
 - **Authentification OAuth** de l'utilisateur final à chaque exécution de l'outil : la plus proche du modèle ChangeMan, mais introduit une étape interactive là où ChangeMan ne le demandait pas forcément.
 
 Ce choix conditionne directement la capacité d'audit de ces outils — sans solution, deux développeurs partageant un même compte technique pourraient rendre une action individuellement non imputable, à l'inverse de ce que garantissait ChangeMan.
