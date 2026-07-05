@@ -13,6 +13,9 @@ Dans la cartographie d'entreprise, chaque application du système d'information 
 
 ## B
 
+**BAL** {: #bal }
+Une boîte aux lettres électronique partagée par une équipe ou un service, par opposition à une adresse email individuelle — c'est l'adresse qui reçoit les alertes automatiques destinées à toute une équipe plutôt qu'à une personne en particulier.
+
 **Bijection (source ↔ load)** {: #bijection-source-load }
 Le fait de pouvoir établir, sans ambiguïté et dans les deux sens, quel code source a produit quel binaire de production, et inversement. C'est une exigence d'audit : on doit pouvoir remonter du binaire qui tourne en production jusqu'au code exact qui l'a généré.
 
@@ -20,6 +23,9 @@ Le fait de pouvoir établir, sans ambiguïté et dans les deux sens, quel code s
 Une ligne de développement indépendante au sein d'un même projet — par exemple, une branche par correctif ou par nouvelle fonctionnalité, qui n'affecte pas le code des autres branches tant qu'elle n'est pas fusionnée.
 
 ## C
+
+**ChangeMan** {: #changeman }
+La solution propriétaire de gestion de configuration et de déploiement (CI/CD) utilisée historiquement sur le Mainframe, avant l'adoption de Git et GitLab décrite dans ce projet. Le patrimoine applicatif géré par ChangeMan est progressivement repris par la nouvelle chaîne outillée autour de Git.
 
 **CI/CD** {: #ci-cd }
 *Continuous Integration / Continuous Delivery* — l'ensemble des étapes automatisées qui transforment un code source en un programme testé, packagé et prêt à être déployé en production (compilation, tests, packaging, promotion).
@@ -63,6 +69,9 @@ Une plateforme web qui héberge les dépôts Git de l'entreprise et automatise l
 **Hash (de commit)** {: #hash-de-commit }
 Une suite de caractères qui identifie de façon unique un état précis du code. Deux copies identiques du même code produisent toujours le même hash — c'est ce qui permet de vérifier que deux endroits (par exemple GitLab et USS) contiennent exactement la même chose, sans comparer fichier par fichier.
 
+**HEAD** {: #head }
+Dans Git, le pointeur qui désigne le commit actuellement « extrait » (*checked out*) dans un répertoire de travail donné — c'est-à-dire l'état exact du code présent sur le disque à cet instant.
+
 **Heartbeat** {: #heartbeat }
 Un signal envoyé à intervalle régulier pour prouver qu'un service est toujours actif. Si le signal s'arrête, c'est le signe que quelque chose ne fonctionne plus, même sans message d'erreur explicite.
 
@@ -82,6 +91,11 @@ La fonction d'audit interne de l'établissement, chargée de vérifier que les r
 
 **ISO (état)** {: #iso-etat }
 Dans cette documentation, ne désigne pas la norme ISO mais le sens littéral d'« identique » : un workspace USS est dit « ISO » lorsqu'il contient exactement le même code que la branche GitLab correspondante.
+
+## J
+
+**jq** {: #jq }
+Un outil en ligne de commande qui permet de lire, filtrer et transformer des données au format JSON, un peu comme `grep` ou `sed` pour du texte structuré — pratique pour interroger un journal ou une réponse d'API sans écrire de script dédié.
 
 ## L
 
@@ -110,6 +124,9 @@ Un mode de fonctionnement temporaire, activé quand un système habituel (ici Gi
 **Native SQL Procedure** {: #native-sql-procedure }
 Une procédure stockée DB2 for z/OS écrite directement en SQL (`CREATE PROCEDURE ... LANGUAGE SQL`), sans passer par un langage hôte comme COBOL ou Java. Le source est compilé par DB2 lui-même et stocké comme *package* dans son propre catalogue — il n'existe pas de load module externe pour ce type de procédure, contrairement à une procédure stockée *externe* (COBOL/Java) qui en produit bien un.
 
+**NTP** {: #ntp }
+*Network Time Protocol* — le protocole standard qui synchronise l'horloge de plusieurs ordinateurs entre eux sur un réseau, pour garantir qu'ils mesurent tous le temps de la même façon.
+
 ## O
 
 **OSGi (bundle)** {: #osgi-bundle }
@@ -123,8 +140,14 @@ Une unité de livraison versionnée — l'ensemble cohérent de changements de c
 **Panel ISPF** {: #panel-ispf }
 Un écran de saisie ou d'affichage défini dans un membre PDS (*Partitioned Data Set* — une bibliothèque de membres sur Mainframe), interprété à l'exécution par ISPF (*Interactive System Productivity Facility*, l'environnement interactif du Mainframe) — pas compilé ni linké comme un programme. Il n'existe donc pas de binaire à proprement parler pour un panel : seule la version du membre source fait foi.
 
+**PAR JCL** {: #par-jcl }
+Un membre JCL (*Job Control Language* — le langage de script qui décrit l'enchaînement d'un traitement batch sur Mainframe) de type procédure ou paramètre, conçu pour être réutilisé par plusieurs jobs plutôt qu'écrit une fois par job.
+
 **PassTicket** {: #passticket }
 Un mécanisme de sécurité Mainframe qui permet à un programme de prouver son identité auprès d'un autre composant interne (par exemple DB2) sans avoir à stocker ou transmettre un mot de passe en clair, en utilisant un secret partagé à usage unique.
+
+**Plan de continuité et de reprise d'activité** {: #plan-de-continuite-et-de-reprise-dactivite }
+Le dispositif global d'un établissement bancaire qui définit comment l'activité continue ou reprend après un sinistre majeur (panne, catastrophe, cyberattaque). Le miroir USS décrit dans cette documentation en est l'un des dispositifs, à l'échelle de la chaîne CI/CD.
 
 ## R
 
@@ -137,10 +160,24 @@ Un mécanisme de sécurité Mainframe qui permet à un programme de prouver son 
 **Réconciliation** {: #reconciliation }
 Une vérification périodique qui compare l'état réellement enregistré (par exemple sur USS) avec une source de référence (GitLab), pour détecter et corriger automatiquement les écarts.
 
+**Runbook** {: #runbook }
+Un anglicisme désignant une procédure documentée, pas à pas, indiquant quoi faire en cas d'incident précis — l'équivalent d'un guide de dépannage destiné à l'équipe d'exploitation plutôt qu'aux développeurs.
+
 ## S
+
+**SI** {: #si }
+*Système d'Information* — l'ensemble des ressources (matériels, logiciels, données, procédures) qui permettent à une organisation de collecter, traiter et faire circuler l'information nécessaire à son activité.
+
+**STC** {: #stc }
+*Started Task* — un type de tâche Mainframe démarrée automatiquement par le système d'exploitation plutôt que par un utilisateur, et destinée à tourner en continu (par opposition à un job batch, qui se termine une fois son traitement achevé).
 
 **Synchronisation** {: #synchronisation }
 Le mécanisme qui maintient deux emplacements (ici GitLab et USS) constamment alignés : chaque changement effectué d'un côté est répercuté de l'autre côté, sans intervention humaine.
+
+## T
+
+**TWS/OPC** {: #tws-opc }
+*Tivoli Workload Scheduler* — l'ordonnanceur qui planifie et déclenche automatiquement l'exécution des traitements batch sur le Mainframe, selon un calendrier ou des dépendances entre jobs.
 
 ## U
 
@@ -156,6 +193,9 @@ Le terme utilisé en interne pour désigner le binaire compilé déployé en pro
 
 **Webhook** {: #webhook }
 Une notification automatique envoyée par un service (ici GitLab) vers un autre dès qu'un événement se produit (un nouveau commit, une branche créée ou supprimée) — l'inverse d'une vérification périodique : c'est le service qui prévient, plutôt que d'être interrogé.
+
+**WLM** {: #wlm }
+*Workload Manager* — le composant z/OS qui répartit les ressources du système (processeur, mémoire) entre les différentes tâches actives, en fonction de la priorité et des objectifs de performance définis pour chacune.
 
 **Workspace** {: #workspace }
 Un répertoire de travail dédié à une branche donnée, contenant son code source à jour. Dans ce projet, chaque branche active dispose de son propre workspace sur USS.
@@ -173,3 +213,6 @@ La technologie qui permet de faire tourner des containers Linux directement sur 
 
 **z/OS Container Platform (zCP)** {: #z-os-container-platform-zcp }
 Une évolution plus récente de zCX, basée sur Kubernetes : elle permet d'orchestrer plusieurs containers sur z/OS (répartition de charge, redémarrage automatique, mise à l'échelle), là où zCX fait tourner des containers de façon plus isolée, sans orchestration.
+
+**zFS** {: #zfs }
+*z/OS File System* — le système de fichiers utilisé par USS pour stocker ses données sur disque, l'équivalent Mainframe d'un système de fichiers comme ext4 ou NTFS sur un serveur classique.
