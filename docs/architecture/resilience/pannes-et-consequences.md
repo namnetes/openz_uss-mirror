@@ -7,12 +7,14 @@ Un défaut de synchro peut avoir des origines très différentes : panne d'un co
 
 ## Vue d'ensemble
 
+Le tableau ci-dessous résume, pour chaque cause : comment elle se détecte, si la CI/CD est impactée, et comment on en sort.
+
 | Cause | Détection | CI/CD impactée ? | Reprise |
 |---|---|---|---|
 | [GitLab en panne](#gitlab-en-panne) | Immédiate côté GitLab lui-même — hors du périmètre du service de sync | Oui, aujourd'hui, sauf procédure dégradée manuelle | Automatique au retour de GitLab (webhooks en attente rejoués) |
 | [zCX (service de sync) en panne](#zcx-service-de-sync-en-panne) | Heartbeat DB2 (`SYNC_SERVICE_HEARTBEAT`), sous ~20 minutes | Non — synchro découplée du pipeline | Automatique si la panne dure moins de ~3h30 ; manuelle au-delà |
 | [DB2 ou DRS indisponible alors que zCX fonctionne](#db2-ou-drs-indisponible-alors-que-zcx-fonctionne) | Heartbeat si l'indisponibilité dépasse ~20 minutes (même canal DRS) ; en dessous, non détectée | Non | À définir pour le cas bref — point ouvert |
-| [Panne côté z/OS](#panne-cote-zos) | Supervision infra existante | Dépend de la topologie du service de sync (point ouvert) | Bascule HA si la topologie est résolue ; sinon manuelle |
+| [Panne côté z/OS](#panne-cote-zos) | Supervision infra existante | Dépend de la topologie du service de sync (point ouvert) | Bascule haute disponibilité si la topologie est résolue ; sinon manuelle |
 | [Bug applicatif ciblé sur une branche](#bug-applicatif-cible-sur-une-branche) | Non détecté par le heartbeat (global) — seulement par la réconciliation, à sa cadence | Non — seule la branche concernée est en retard | Automatique à la prochaine réconciliation |
 | [Saturation ou corruption du stockage USS](#saturation-ou-corruption-du-stockage-uss) | Non couvert explicitement à ce stade | Potentiellement, si un pipeline lit directement USS (voir [Perspectives](../../perspectives.md#optimisation-potentielle-de-la-chaine-de-build)) | À définir — point ouvert |
 | [Dérive de configuration côté GitLab](#derive-de-configuration-cote-gitlab) | Aucune avant la prochaine réconciliation | Non | Automatique à la prochaine réconciliation, une fois la configuration corrigée |
@@ -36,7 +38,7 @@ La reprise est automatique dès le retour de GitLab : les webhooks mis en attent
 
 ## DB2 ou DRS indisponible alors que zCX fonctionne
 
-Cas distinct d'une panne zCX totale : le container est vivant, il reçoit bien les webhooks GitLab, mais l'écriture dans `SYNC_STATUS` échoue (DRS injoignable, verrou DB2, timeout). Si l'indisponibilité de DRS se prolonge au-delà du seuil d'alerte, le heartbeat finit par la détecter comme une panne classique — le ping vers `SYNC_SERVICE_HEARTBEAT` emprunte le même canal DRS et échoue donc lui aussi. Mais pour une indisponibilité brève (quelques secondes à quelques minutes, sous le seuil d'alerte), le comportement à adopter n'est pas encore précisé :
+Cas distinct d'une panne zCX totale : le container est vivant, il reçoit bien les webhooks GitLab, mais l'écriture dans `SYNC_STATUS` échoue (DRS injoignable, verrou DB2, time-out). Si l'indisponibilité de DRS se prolonge au-delà du seuil d'alerte, le heartbeat finit par la détecter comme une panne classique — le ping vers `SYNC_SERVICE_HEARTBEAT` emprunte le même canal DRS et échoue donc lui aussi. Mais pour une indisponibilité brève (quelques secondes à quelques minutes, sous le seuil d'alerte), le comportement à adopter n'est pas encore précisé :
 
 - Le webhook doit-il échouer volontairement (répondre un code non-2xx) pour forcer GitLab à le rejouer plus tard, une fois DB2/DRS de nouveau disponible ?
 - Ou l'opération `git worktree`/`reset --hard` doit-elle malgré tout être effectuée sur USS, quitte à laisser `SYNC_STATUS` provisoirement désynchronisé (au risque de fausser le verrou de synchro côté consommateur pour cette branche précise) ?
@@ -67,4 +69,4 @@ C'est un point ouvert, voir [Détection de la saturation ou de la corruption du 
 
 ## Dérive de configuration côté GitLab
 
-Secret de webhook expiré ou changé sans mise à jour côté zCX, webhook désactivé par erreur, permissions du compte de service GitLab révoquées : rien n'est "en panne" au sens infrastructure, mais plus aucun webhook n'est émis ou accepté. Ce cas est déjà indirectement couvert par le point ouvert [Sécurisation des échanges avec GitLab](../../points-ouverts.md#securisation-des-echanges-avec-gitlab), mais mérite d'être nommé explicitement ici comme cause de désynchro : sans webhook entrant valide, seule la réconciliation périodique — à sa cadence, potentiellement journalière — permet de s'en apercevoir.
+Secret de webhook expiré ou changé sans mise à jour côté zCX, webhook désactivé par erreur, permissions du compte de service GitLab révoquées : rien n'est « en panne » au sens infrastructure, mais plus aucun webhook n'est émis ou accepté. Ce cas est déjà indirectement couvert par le point ouvert [Sécurisation des échanges avec GitLab](../../points-ouverts.md#securisation-des-echanges-avec-gitlab), mais mérite d'être nommé explicitement ici comme cause de désynchro : sans webhook entrant valide, seule la réconciliation périodique — à sa cadence, potentiellement journalière — permet de s'en apercevoir.
