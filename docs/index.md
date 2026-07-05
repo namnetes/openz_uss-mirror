@@ -3,7 +3,7 @@
 !!! info "Projet de résilience CI/CD Mainframe"
     Ce projet s'inscrit dans un programme de modernisation de la chaîne CI/CD
     (*Continuous Integration / Continuous Delivery*) pour l'environnement IBM
-    Mainframe.
+    [Mainframe](glossaire.md).
 
 ## Contexte et objectifs
 
@@ -17,15 +17,16 @@ du marché — notamment **Git** et **GitLab**.
 ### L'enjeu stratégique de la résilience
 
 L'environnement bancaire exige une disponibilité maximale. L'indisponibilité
-des outils open-source (GitLab, serveurs distribués) ne doit en aucun cas
-paralyser l'activité de développement ou de production sur le Mainframe.
+d'une infrastructure externe au périmètre z/OS (GitLab, serveurs distribués
+hors Mainframe) ne doit en aucun cas paralyser l'activité de développement ou
+de production sur le Mainframe.
 
 ### Première étape clé
 
 Pour garantir cette continuité d'activité, la priorité absolue est d'assurer
 une **synchronisation permanente et locale des sources** : tout code présent
 sur GitLab doit être disponible et à jour à tout instant directement sur le
-Mainframe. Cela permet de basculer en mode dégradé ou autonome si les outils
+Mainframe. Cela permet de basculer en mode dégradé si les outils
 externes deviennent inaccessibles.
 
 ## Explorer la documentation
@@ -35,8 +36,8 @@ externes deviennent inaccessibles.
 -   :material-sitemap: **[Architecture](architecture/index.md)**
 
     Les composants techniques prévus pour la résilience de la chaîne
-    CI/CD — synchronisation USS (*Unix System Services*), mode dégradé,
-    supervision.
+    CI/CD — le miroir USS (*Unix System Services*), sa synchronisation, mode
+    dégradé, supervision.
 
 -   :material-telescope: **[Perspectives et synergies](perspectives.md)**
 
