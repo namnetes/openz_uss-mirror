@@ -19,6 +19,8 @@ Le service de sync écrit chaque opération dans une table **DB2 for z/OS**, via
 
 Cet appel zCX → DRS s'authentifie avec un **compte technique** dédié, via **PassTicket** RACF (*Resource Access Control Facility*) : le secret n'est jamais stocké en clair côté zCX, puisque le PassTicket est à usage unique et généré à la demande à partir d'un secret partagé déjà connu de RACF et de DRS. Cette partie de la chaîne de sécurité — strictement interne au périmètre z/OS — est donc couverte. Ce qui reste à trancher (authentification du webhook entrant depuis GitLab, et rotation du jeton d'API GitLab utilisé par la réconciliation) est suivi dans [Points non couverts](../../points-ouverts.md#securisation-des-echanges-avec-gitlab).
 
+Voici la structure de cette table :
+
 ```sql
 -- Table SYNC_STATUS (une ligne par branche par application, mise à jour
 -- à chaque webhook traité). APP_CODE seul ne suffit pas comme clé : chacune
@@ -37,9 +39,9 @@ CREATE TABLE SYNC_STATUS (
 ```
 
 !!! warning "MAX(LAST_SYNCED_AT) ne suffit pas : il confond « service vivant » et « activité des développeurs »"
-    Une première idée consiste à surveiller `MAX(LAST_SYNCED_AT)` sur `SYNC_STATUS` : tant que le service traite des webhooks, cet horodatage avance. Mais `SYNC_STATUS` n'est mis à jour **que si un développeur pousse du code** — la nuit, le week-end, ou tout simplement un jour calme, cet horodatage cesse d'avancer même si le service est parfaitement vivant. Avec un seuil de 15 minutes, ça déclencherait une **fausse alerte à chaque nuit et chaque week-end**.
+    Une première idée consiste à surveiller `MAX(LAST_SYNCED_AT)` sur `SYNC_STATUS` : tant que le service traite des webhooks, cet horodatage avance. Mais `SYNC_STATUS` n'est mis à jour **que si un développeur pousse du code** — la nuit, le week-end, ou tout simplement un jour calme, cet horodatage cesse d'avancer même si le service est parfaitement vivant. Avec un seuil de 15 minutes, cela déclencherait une **fausse alerte à chaque nuit et chaque week-end**.
 
-    Essayer de corriger ça avec un calendrier d'activité attendue (heures ouvrées, week-ends, jours fériés) serait fragile : un séminaire ou une journée calme imprévue ne figurent dans aucun calendrier générique.
+    Essayer de corriger cela avec un calendrier d'activité attendue (heures ouvrées, week-ends, jours fériés) serait fragile : un séminaire ou une journée calme imprévue ne figurent dans aucun calendrier générique.
 
 Le heartbeat repose donc sur une **table séparée**, indépendante de toute activité GitLab : le service de sync y écrit son propre signal de vie, sur son timer interne, toutes les 5 minutes — qu'il y ait ou non un webhook à traiter.
 
@@ -62,7 +64,7 @@ FROM SYNC_SERVICE_HEARTBEAT;
 
 1. Seuil arbitraire, à recaler expérimentalement — mais cette fois sans dépendre du volume d'activité des développeurs, puisque le signal est émis par le service lui-même, à fréquence fixe.
 
-**Décision retenue : un job TWS/OPC (*Tivoli Workload Scheduler*, l'ordonnanceur de traitements batch du Mainframe) en cycle répétitif toutes les 5 minutes.** TWS/OPC est avant tout conçu pour l'ordonnancement de traitements batch, pas pour du monitoring continu 24 h/24 — mais pour un contrôle aussi simple (une requête SQL), le coût d'initialisation d'un job toutes les 5 minutes reste négligeable, et ça évite d'introduire une **STC** (*Started Task* — une tâche z/OS démarrée une fois et qui tourne en continu, sans jamais se terminer) supplémentaire à surveiller elle-même, avec sa propre configuration RACF/**WLM** (*Workload Manager* — le composant z/OS qui répartit les ressources entre les traitements actifs) dédiée. Ce choix s'appuie sur un outillage déjà connu et déjà opéré par l'équipe d'exploitation, plutôt que sur un nouveau composant à faire vivre.
+**Décision retenue : un job TWS/OPC (*Tivoli Workload Scheduler* — l'ordonnanceur de traitements batch du Mainframe) en cycle répétitif toutes les 5 minutes.** TWS/OPC est avant tout conçu pour l'ordonnancement de traitements batch, pas pour du monitoring continu 24 h/24 — mais pour un contrôle aussi simple (une requête SQL), le coût d'initialisation d'un job toutes les 5 minutes reste négligeable, et cela évite d'introduire une **STC** (*Started Task* — une tâche z/OS démarrée une fois et qui tourne en continu, sans jamais se terminer) supplémentaire à surveiller elle-même, avec sa propre configuration RACF/**WLM** (*Workload Manager* — le composant z/OS qui répartit les ressources entre les traitements actifs) dédiée. Ce choix s'appuie sur un outillage déjà connu et déjà opéré par l'équipe d'exploitation, plutôt que sur un nouveau composant à faire vivre.
 
 Le job TWS/OPC exécute la requête ci-dessus toutes les **5 minutes** — un choix qui n'est pas arbitraire, il découle de deux contraintes :
 
@@ -71,7 +73,7 @@ Le job TWS/OPC exécute la requête ci-dessus toutes les **5 minutes** — un ch
 
 Un intervalle plus court (1-2 minutes) multiplierait les lancements de job sans gain réel de détection ; un intervalle plus long (10-15 minutes) réduirait la marge de sécurité — un seul cycle retardé suffirait alors à repousser la détection à 30-45 minutes.
 
-En cas d'`ALERTE`, le job notifie par messagerie la **BAL de l'équipe d'administration** et la liste de diffusion **`LCL_SNI_SQAUD_SAM`** — les deux destinataires du canal d'alerte pour ce composant.
+En cas d'`ALERTE`, le job notifie par messagerie la **BAL** (*boîte aux lettres*) **de l'équipe d'administration** et la liste de diffusion **`LCL_SNI_SQUAD_SAM`** — les deux destinataires du canal d'alerte pour ce composant.
 
 `SYNC_STATUS` (et son `MAX(LAST_SYNCED_AT)`) reste utile pour autre chose : savoir **quand a eu lieu la dernière activité réelle** sur le patrimoine — une information opérationnelle différente de "le service est-il vivant".
 
@@ -99,7 +101,7 @@ Ce balayage couvre les **quatre cas** possibles, pas seulement le retard de comm
     - **Absence de ligne DB2** (webhook de création perdu) : il n'y a rien à comparer — l'absence d'une ligne n'est pas un horodatage périmé.
     - **Workspace orphelin** (webhook de suppression perdu) : la branche a disparu de GitLab, donc plus aucun horodatage GitLab en face à comparer — seule la liste des branches encore existantes révèle l'orphelin.
     - **Écriture DB2 réussie mais opération git échouée juste après** (panne réseau, erreur git) : `LAST_SYNCED_AT` est à jour alors que USS est resté sur l'ancien commit — le timestamp ment, le hash non.
-    - **Dérive d'horloge** entre GitLab (hors périmètre z/OS) et DB2 : comparer deux horodatages absolus entre deux systèmes indépendants suppose une synchronisation NTP fiable des deux côtés ; le hash, lui, est insensible à toute dérive d'horloge.
+    - **Dérive d'horloge** entre GitLab (hors périmètre z/OS) et DB2 : comparer deux horodatages absolus entre deux systèmes indépendants suppose une synchronisation NTP (*Network Time Protocol*) fiable des deux côtés ; le hash, lui, est insensible à toute dérive d'horloge.
 
     Enfin, l'appel API GitLab qui donnerait l'horodatage du dernier commit d'une branche renvoie de toute façon son hash dans la même réponse — comparer le hash n'a donc **aucun surcoût** par rapport à un horodatage, tout en étant strictement plus fiable puisqu'il prouve l'identité du contenu et non une simple notion de fraîcheur.
 
@@ -131,7 +133,7 @@ WHERE APP_CODE = 'DA12' AND BRANCH_NAME = 'pkg/PKG-20260616-0042';
 Un `STATUS = 'PENDING'` qui ne repasse pas à `READY` au-delà d'un seuil (le même principe que le heartbeat, ex. 15 minutes) signale un service de sync mort en cours d'opération sur cette branche précise — à traiter par la même alerte de supervision, sans mécanisme dédié supplémentaire.
 
 !!! note "Le consommateur peut vérifier la fraîcheur en plus du statut — en complément, pas à la place de la supervision"
-    Un consommateur pourrait être tenté d'interroger lui-même `SYNC_SERVICE_HEARTBEAT` (voir [Heartbeat DB2](#heartbeat-db2-detection-quasi-temps-reel)) avant de lire, plutôt que de s'en remettre à la supervision centrale. Ça reste une bonne pratique **en complément** — une seconde ligne de défense qui protège le consommateur même si une alerte d'exploitation a été manquée ou tarde à être traitée. Mais ça ne peut pas **remplacer** le heartbeat centralisé : la détection ne se déclencherait alors que lorsqu'un consommateur cherche effectivement à lire — si aucun pipeline ne tourne sur une application donnée pendant un week-end, personne ne vérifie rien, et un service mort passerait inaperçu jusqu'au retour d'activité. C'est exactement la même faille que celle du heartbeat basé sur `SYNC_STATUS` (voir plus haut), seulement déplacée de "l'activité des développeurs" vers "l'activité des consommateurs". Le heartbeat centralisé reste donc indispensable pour l'alerte proactive de l'exploitation ; la vérification côté consommateur n'est qu'une garantie supplémentaire au moment de la lecture.
+    Un consommateur pourrait être tenté d'interroger lui-même `SYNC_SERVICE_HEARTBEAT` (voir [Heartbeat DB2](#heartbeat-db2-detection-quasi-temps-reel)) avant de lire, plutôt que de s'en remettre à la supervision centrale. Cela reste une bonne pratique **en complément** — une seconde ligne de défense qui protège le consommateur même si une alerte d'exploitation a été manquée ou tarde à être traitée. Mais cela ne peut pas **remplacer** le heartbeat centralisé : la détection ne se déclencherait alors que lorsqu'un consommateur cherche effectivement à lire — si aucun pipeline ne tourne sur une application donnée pendant un week-end, personne ne vérifie rien, et un service mort passerait inaperçu jusqu'au retour d'activité. C'est exactement la même faille que celle du heartbeat basé sur `SYNC_STATUS` (voir plus haut), seulement déplacée de "l'activité des développeurs" vers "l'activité des consommateurs". Le heartbeat centralisé reste donc indispensable pour l'alerte proactive de l'exploitation ; la vérification côté consommateur n'est qu'une garantie supplémentaire au moment de la lecture.
 
 L'authentification du consommateur auprès de DRS pour cette lecture reste à définir, voir [Points non couverts](../../points-ouverts.md#acces-consommateur-au-statut-de-synchro-drs).
 
