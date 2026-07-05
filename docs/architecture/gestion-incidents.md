@@ -18,7 +18,7 @@ Quand le container zCX (*z/OS Container Extensions*) hébergeant le service de s
 | 4e relance | 100 minutes |
 | 5e relance | 100 minutes |
 
-**Fenêtre de grâce totale : environ 3 heures et demie.** Si le service redémarre dans cette fenêtre, GitLab rejoue les webhooks en attente et USS se resynchronise automatiquement, sans intervention manuelle.
+**Fenêtre de grâce totale : environ 3 heures et 36 minutes.** Si le service redémarre dans cette fenêtre, GitLab rejoue les webhooks en attente et USS se resynchronise automatiquement, sans intervention manuelle.
 
 Le **heartbeat DB2** (voir [Résilience et synchronisation USS](resilience/detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) détecte l'indisponibilité bien avant l'expiration de cette fenêtre — sous ~20 minutes, dès que le service cesse d'écrire son propre signal de vie dans `SYNC_SERVICE_HEARTBEAT` — et alerte l'équipe d'exploitation pendant qu'il reste encore largement le temps d'agir avant que GitLab n'abandonne les relances.
 
@@ -38,17 +38,17 @@ Ce cas est différent d'une panne zCX : c'est ici **GitLab lui-même** qui est i
 
 Toutes les actions habituellement portées par la chaîne CI/CD (*Continuous Integration / Continuous Delivery*) GitLab (build, packaging, promotion, déploiement) doivent pouvoir continuer à s'exécuter à partir du dernier état synchronisé sur USS, mais **hors GitLab**, via des procédures dégradées ou manuelles équivalentes à ce qui existait déjà sous ChangeMan.
 
-Comme sous ChangeMan, où chacune de ces actions dégradées était tracée dans une log dédiée, ce même besoin s'applique ici : toute action exécutée hors GitLab pendant la panne (qui, quoi, sur quelle application/branche/package, quand) doit être enregistrée dans un **journal dédié au mode dégradé**, distinct du journal de synchronisation normal. Ce journal sert de base, au retour de GitLab, pour reporter manuellement dans GitLab l'ensemble des actions effectuées pendant la panne (commits, tags, statuts de déploiement) et restaurer la cohérence entre GitLab et la réalité de production.
+Comme sous ChangeMan, où chacune de ces actions dégradées était tracée dans un journal dédié, ce même besoin s'applique ici : toute action exécutée hors GitLab pendant la panne (qui, quoi, sur quelle application/branche/package, quand) doit être enregistrée dans **le journal du mode dégradé**, distinct du journal de synchronisation normal. Ce journal sert de base, au retour de GitLab, pour reporter manuellement dans GitLab l'ensemble des actions effectuées pendant la panne (commits, tags, statuts de déploiement) et restaurer la cohérence entre GitLab et la réalité de production.
 
 ---
 
 ## Vérification de l'état ISO
 
-"ISO" est utilisé ici dans son sens littéral d'**identique** (isomorphe) — pas la norme ISO (*International Organization for Standardization*). Un workspace "ISO" est un workspace dont le contenu est rigoureusement identique à la branche GitLab correspondante.
+« ISO » est utilisé ici dans son sens littéral d'**identique** (isomorphe) — pas la norme ISO (*International Organization for Standardization*). Un workspace « ISO » est un workspace dont le contenu est rigoureusement identique à la branche GitLab correspondante.
 
-La vérification compare le **hash de commit HEAD** connu pour chaque branche avec l'état de cette même branche sur GitLab. Un hash git est une empreinte cryptographique unique d'un état du code : deux états identiques produisent le même hash.
+La vérification compare le **hash de commit HEAD** (le pointeur Git désignant le commit courant du workspace) connu pour chaque branche avec l'état de cette même branche sur GitLab. Un hash git est une empreinte cryptographique unique d'un état du code : deux états identiques produisent le même hash.
 
-```bash
+```
 # Hash connu pour une branche — lu en DB2 (rapide, pas besoin de toucher USS)
 # APP_CODE est indispensable : la même branche "pkg/..." ou "main" existe
 # de façon indépendante dans chacune des 600 applications.
@@ -90,7 +90,7 @@ La procédure couvre quatre cas :
 |---|---|
 | Branche GitLab présente, workspace USS absent | `git worktree add` — crée le workspace |
 | Workspace USS en retard sur GitLab | `git -C <workspace> fetch && git -C <workspace> reset --hard origin/<branche>` — réaligne sur GitLab |
-| Workspace USS au niveau de GitLab | Aucune action — log "OK" |
+| Workspace USS au niveau de GitLab | Aucune action — log `OK` |
 | Workspace USS présent, branche GitLab supprimée | `git worktree remove` — supprime l'orphelin |
 
 ```bash
@@ -98,6 +98,11 @@ La procédure couvre quatre cas :
 # (exécutée par le service de sync ou manuellement par un opérateur)
 # Rejouée indépendamment pour chacune des ~600 applications (code CAPIREF
 # DAxx ou DYxx) — une application n'a aucune visibilité sur les autres.
+#
+# gitlab_api est un helper fictif représentant l'appel réel à l'API GitLab
+# (authentification, pagination, etc. non détaillés ici). jq est l'outil de
+# requêtage JSON déjà présenté dans
+# resilience/service-synchronisation.md#journalisation-des-operations (voir jq).
 
 APP=$1   # ex. DA12 — code CAPIREF de l'application traitée
 GITLAB_BRANCHES=$(gitlab_api GET /projects/$APP/repository/branches | jq -r '.[].name')
