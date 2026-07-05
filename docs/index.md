@@ -46,6 +46,12 @@ externes deviennent inaccessibles.
     la bijection source/load exigée par l'Inspection Générale,
     cartographie applicative.
 
+-   :material-scale-balance: **[Conformité réglementaire](conformite-reglementaire.md)**
+
+    DORA, doctrine ACPR, ISO/IEC 27001 et BCBS confrontés à l'architecture —
+    et la base réglementaire réelle de la bijection source/load exigée par
+    l'Inspection Générale.
+
 -   :material-book-alphabet: **[Glossaire](glossaire.md)**
 
     Les termes techniques de cette documentation, vulgarisés pour un

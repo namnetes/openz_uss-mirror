@@ -28,6 +28,14 @@ Une analyse technique récente de l'architecture de résilience, menée au regar
 - Aucun monitoring applicatif réel n'existe au-delà de l'alerte binaire du heartbeat : pas de tableau de bord, pas de suivi de budget d'erreur, pas de télémétrie sur l'âge du dernier événement traité par branche.
 - La cadence de réconciliation (« potentiellement journalière ») reste à réévaluer : c'est le seul filet de rattrapage pour un bug applicatif ciblé ou une dérive de configuration GitLab, avec un délai de correction potentiel de plusieurs heures (voir [Comportement quand DB2/DRS est indisponible alors que zCX fonctionne](#comportement-quand-db2drs-est-indisponible-alors-que-zcx-fonctionne) pour le mécanisme de réconciliation lui-même).
 
+## Conformité réglementaire à formaliser
+
+Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conformite-reglementaire.md)) a identifié trois points à traiter formellement, indépendamment des questions déjà listées ci-dessus :
+
+- **RTO et RPO à engager formellement** pour le service de synchronisation et sa procédure de resynchronisation, au titre de l'article 12 de DORA — priorité la plus haute de cette section, à recouper avec les lacunes déjà listées dans [Fiabilité du dispositif de mitigation](#fiabilite-du-dispositif-de-mitigation-constats-de-lanalyse-technique) ci-dessus (absence de RTO/RPO déjà notée sous l'angle technique, ici sous l'angle réglementaire).
+- **Vérification à mener auprès de la fonction conformité** sur une éventuelle notification ACPR (instruction 2020-I-09) et une politique d'externalisation écrite couvrant l'usage de GitLab — non tranchée côté équipe technique, sans que cela signifie une absence de démarche menée ailleurs dans l'établissement.
+- **Cartographie formelle des interdépendances** (principe n° 4 des *Principles for Operational Resilience* du Comité de Bâle, BCBS 561) reliant les opérations métier critiques à la chaîne complète de leurs dépendances techniques — non produite à ce stade.
+
 ## Politique de purge du dépôt git
 
 Le cas de la **suppression totale d'un dépôt applicatif** (arrêt définitif d'une application, ou migration de version majeure vers une nouvelle application distincte) est désormais tranché, voir [Suppression totale d'un dépôt applicatif](perspectives.md#suppression-totale-dun-depot-applicatif) — le déclencheur est métier (gestionnaire du patrimoine applicatif) et la décision est binaire.

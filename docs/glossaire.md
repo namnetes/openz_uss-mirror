@@ -5,6 +5,9 @@
 
 ## A
 
+**ACPR**{: #acpr }
+*Autorité de Contrôle Prudentiel et de Résolution* — le régulateur français qui supervise les établissements bancaires et d'assurance, adossé à la Banque de France. Elle contrôle notamment le respect des règles de contrôle interne, d'externalisation et, depuis 2025, de DORA.
+
 **AMBLIST**{: #amblist }
 Un utilitaire IBM standard qui permet d'inspecter le contenu d'un load module — notamment ses IDR — sans avoir besoin de l'exécuter, via son option `LISTIDR`.
 
@@ -18,6 +21,9 @@ Dans la cartographie d'entreprise, chaque application du système d'information 
 
 **BAL**{: #bal }
 Une boîte aux lettres électronique partagée par une équipe ou un service, par opposition à une adresse email individuelle — c'est l'adresse qui reçoit les alertes automatiques destinées à toute une équipe plutôt qu'à une personne en particulier.
+
+**BCBS**{: #bcbs }
+*Basel Committee on Banking Supervision* (Comité de Bâle sur le contrôle bancaire) — l'organisme international qui édicte les standards de référence en matière de supervision prudentielle bancaire, dont des principes de résilience opérationnelle repris ensuite par les régulateurs nationaux et européens.
 
 **Bijection (source ↔ load)**{: #bijection-source-load }
 Le fait de pouvoir établir, sans ambiguïté et dans les deux sens, quel code source a produit quel binaire de production, et inversement. C'est une exigence d'audit : on doit pouvoir remonter du binaire qui tourne en production jusqu'au code exact qui l'a généré.
@@ -170,6 +176,9 @@ Un jeton d'authentification généré individuellement par un utilisateur GitLab
 **Plan de continuité et de reprise d'activité**{: #plan-de-continuite-et-de-reprise-dactivite }
 Le dispositif global d'un établissement bancaire qui définit comment l'activité continue ou reprend après un sinistre majeur (panne, catastrophe, cyberattaque). Le miroir USS décrit dans cette documentation en est l'un des dispositifs, à l'échelle de la chaîne CI/CD.
 
+**Prestataire TIC critique (DORA)**{: #prestataire-tic-critique-dora }
+Un statut réglementaire réservé à un nombre restreint de prestataires de services informatiques désignés chaque année par les autorités européennes de supervision au titre de DORA, en raison de leur importance systémique pour le secteur financier — soumis à ce titre à une supervision directe au niveau européen. La désignation reste rare (19 prestataires désignés en 2025, essentiellement des fournisseurs cloud et des éditeurs financiers).
+
 **PSI (Plan de Secours Informatique)**{: #psi-plan-de-secours-informatique }
 L'exercice périodique de bascule d'un site vers l'autre, mené dans les deux sens entre les deux datacenters, qui vise à valider la capacité de reprise de l'infrastructure (LPAR, stockage, réseau) en cas de sinistre.
 
@@ -183,6 +192,12 @@ L'exercice périodique de bascule d'un site vers l'autre, mené dans les deux se
 
 **Réconciliation**{: #reconciliation }
 Une vérification périodique qui compare l'état réellement enregistré (par exemple sur USS) avec une source de référence (GitLab), pour détecter et corriger automatiquement les écarts.
+
+**RPO**{: #rpo }
+*Recovery Point Objective* — la perte de données maximale tolérée lors d'une reprise après incident, exprimée en temps (ex. « 5 minutes de RPO » signifie qu'au plus 5 minutes de données peuvent être perdues). Se distingue du RTO, qui porte sur le délai de reprise plutôt que sur la perte de données.
+
+**RTO**{: #rto }
+*Recovery Time Objective* — le délai maximal toléré pour rétablir un service après un incident. Contrairement aux délais de détection d'une panne, le RTO porte sur le temps total jusqu'au retour à un fonctionnement normal, détection et remédiation comprises.
 
 **Runbook**{: #runbook }
 Un anglicisme désignant une procédure documentée, pas à pas, indiquant quoi faire en cas d'incident précis — l'équivalent d'un guide de dépannage destiné à l'équipe d'exploitation plutôt qu'aux développeurs.
@@ -202,6 +217,9 @@ Un anglicisme désignant une procédure documentée, pas à pas, indiquant quoi 
 Le mécanisme qui maintient deux emplacements (ici GitLab et USS) constamment alignés : chaque changement effectué d'un côté est répercuté de l'autre côté, sans intervention humaine.
 
 ## T
+
+**TLPT**{: #tlpt }
+*Threat-Led Penetration Testing* — un test de résilience avancé, basé sur des scénarios d'attaque réalistes menés par une équipe spécialisée, réservé par DORA aux établissements de grande taille ou systémiques répondant à des critères précis.
 
 **TWS/OPC**{: #tws-opc }
 *Tivoli Workload Scheduler* — l'ordonnanceur qui planifie et déclenche automatiquement l'exécution des traitements batch sur le Mainframe, selon un calendrier ou des dépendances entre jobs.

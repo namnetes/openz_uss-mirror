@@ -20,6 +20,8 @@ Le règlement européen [**DORA**](glossaire.md#dora) (*Digital Operational Resi
 
 Le miroir USS, en tant que copie certifiable et horodatée des sources GitLab hébergée dans le périmètre z/OS natif, constitue une source potentielle pour alimenter une sauvegarde sécurisée des sources applicatives. Un projet distinct, dédié à la mise en place de sauvegardes sécurisées (avec tests de restauration réguliers), pourrait s'appuyer sur ce miroir plutôt que de mettre en place sa propre collecte de sources.
 
+Pour une confrontation complète de l'architecture aux exigences de DORA (articles 5-31), à la doctrine ACPR et aux référentiels ISO/IEC 27001 et BCBS, voir [Conformité réglementaire](conformite-reglementaire.md).
+
 ## Prise d'image du patrimoine en production
 
 Un outil de **prise d'image du patrimoine en production** photographie l'état des sources, soit de façon sélective, soit de façon globale sur l'ensemble du patrimoine, pour alimenter divers outils d'analyse.
