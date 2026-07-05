@@ -170,6 +170,9 @@ Un jeton d'authentification généré individuellement par un utilisateur GitLab
 **Plan de continuité et de reprise d'activité**{: #plan-de-continuite-et-de-reprise-dactivite }
 Le dispositif global d'un établissement bancaire qui définit comment l'activité continue ou reprend après un sinistre majeur (panne, catastrophe, cyberattaque). Le miroir USS décrit dans cette documentation en est l'un des dispositifs, à l'échelle de la chaîne CI/CD.
 
+**PSI (Plan de Secours Informatique)**{: #psi-plan-de-secours-informatique }
+L'exercice périodique de bascule d'un site vers l'autre, mené dans les deux sens entre les deux datacenters, qui vise à valider la capacité de reprise de l'infrastructure (LPAR, stockage, réseau) en cas de sinistre.
+
 ## R
 
 **RACF**{: #racf }
