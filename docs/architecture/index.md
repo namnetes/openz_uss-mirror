@@ -15,8 +15,8 @@ même en cas de panne d'un outil externe comme GitLab.
 
 -   :material-lifebuoy: **[Gestion des incidents et reprise](gestion-incidents.md)**
 
-    Le [runbook](../glossaire.md) : que se passe-t-il pendant une panne,
-    comment vérifier que USS est à jour ([état ISO](../glossaire.md)),
+    Le [runbook](../glossaire.md#runbook) : que se passe-t-il pendant une panne,
+    comment vérifier que USS est à jour ([état ISO](../glossaire.md#iso-etat)),
     comment resynchroniser après incident.
 
 </div>

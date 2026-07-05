@@ -3,7 +3,7 @@
 !!! info "Projet de résilience CI/CD Mainframe"
     Ce projet s'inscrit dans un programme de modernisation de la chaîne CI/CD
     (*Continuous Integration / Continuous Delivery*) pour l'environnement IBM
-    [Mainframe](glossaire.md).
+    [Mainframe](glossaire.md#mainframe).
 
 ## Contexte et objectifs
 

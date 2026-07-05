@@ -101,8 +101,8 @@ La procédure couvre quatre cas :
 #
 # gitlab_api est un helper fictif représentant l'appel réel à l'API GitLab
 # (authentification, pagination, etc. non détaillés ici). jq est l'outil de
-# requêtage JSON déjà présenté dans
-# resilience/service-synchronisation.md#journalisation-des-operations (voir jq).
+# requêtage JSON défini dans glossaire.md#jq (voir aussi son usage détaillé dans
+# resilience/service-synchronisation.md#journalisation-des-operations).
 
 APP=$1   # ex. DA12 — code CAPIREF de l'application traitée
 GITLAB_BRANCHES=$(gitlab_api GET /projects/$APP/repository/branches | jq -r '.[].name')
