@@ -8,13 +8,13 @@
 
 ## La contrainte de départ
 
-La plateforme repose sur GitLab, une infrastructure ouverte hébergée hors du z/OS. Sur un SI (*Système d'Information*) critique bancaire, toute dépendance à une infrastructure externe représente un risque réglementaire : une panne GitLab ne peut pas priver le périmètre z/OS natif de l'accès aux sources.
+La plateforme repose sur GitLab, une infrastructure ouverte hébergée hors du périmètre z/OS. Sur un SI (*Système d'Information*) critique bancaire, toute dépendance à une infrastructure externe représente un risque réglementaire : une panne GitLab ne peut pas priver le périmètre z/OS natif de l'accès aux sources.
 
 **La règle est donc absolue : à tout instant, les sources sur USS (*Unix System Services*) sont identiques aux sources sur GitLab.**
 
 USS n'est pas un cache de travail. C'est un **miroir réglementaire** : une copie certifiable et vérifiable du référentiel GitLab, hébergée dans le périmètre z/OS natif.
 
-**USS est strictement accessible en lecture pour tout le monde, y compris en mode dégradé.** Seul le service de synchronisation est autorisé à écrire sur les workspaces USS (création, mise à jour, suppression de worktrees) ; aucun développeur, opérateur ou processus manuel n'y écrit directement, sous peine de rompre la garantie d'identité avec GitLab que ce miroir existe pour certifier.
+**USS est strictement accessible en lecture pour tout le monde, y compris en mode dégradé.** Seul le service de synchronisation est autorisé à écrire sur les workspaces USS (création, mise à jour, suppression de worktrees) ; aucun développeur, opérateur ou processus manuel n'y écrit directement, sous peine de rompre la garantie d'identité avec GitLab que ce miroir a précisément pour vocation de certifier.
 
 ## Les workspaces USS — une branche, un répertoire
 
@@ -61,13 +61,13 @@ Quand un développeur ne modifie que 3 fichiers sur sa branche, son workspace ne
 
 Ce composant modifie la vue d'ensemble de la plateforme sur quatre points :
 
-1. **Un nouveau container zCX** est ajouté : le service de sync, dédié à la réception des webhooks et à la gestion des worktrees USS. Il est intentionnellement séparé du container applicatif (NiceGUI + FastAPI) pour que sa panne n'affecte pas l'interface, et réciproquement.
+1. **Un nouveau container zCX** est ajouté : le service de sync, dédié à la réception des webhooks et à la gestion des worktrees USS. Il est intentionnellement séparé du container applicatif — l'interface web de la plateforme, bâtie sur les frameworks Python NiceGUI et FastAPI — pour que sa panne n'affecte pas l'interface, et réciproquement.
 
 2. **USS devient une couche d'infrastructure à part entière**, et non un simple répertoire de travail temporaire. Sa disponibilité, son espace disque et la santé de ses worktrees doivent être surveillées au même titre que les autres composants critiques de la plateforme.
 
 3. **DB2 for z/OS gagne deux tables supplémentaires** (`SYNC_STATUS` et `SYNC_SERVICE_HEARTBEAT`), sans nouvelle brique d'infrastructure : une extension du registre central déjà utilisé pour la traçabilité des packages. `SYNC_STATUS` accélère la réconciliation périodique et expose aux consommateurs un statut `PENDING`/`READY` pour éviter toute lecture partielle d'un workspace en cours de synchro ; `SYNC_SERVICE_HEARTBEAT` porte le signal de vie du service, indépendamment de toute activité GitLab (voir [Détection et gestion des défauts de synchro](detection-defauts.md)).
 
-4. **La résilience de ce composant s'appuie sur l'infrastructure existante** : le SI bancaire est hébergé sur deux datacenters en haute disponibilité, ce qui couvre nativement la panne physique (stockage, LPAR — *Logical Partition*) ainsi que la disponibilité de DB2 — sans dispositif spécifique à concevoir pour ce projet sur ce point. Seule la topologie du service de sync lui-même entre les deux sites (actif/actif ou actif/passif) reste à préciser, voir [Points non couverts](../../points-ouverts.md#topologie-du-service-de-sync-entre-les-deux-datacenters).
+4. **La résilience de ce composant s'appuie sur l'infrastructure existante** : le SI bancaire est hébergé sur deux datacenters en haute disponibilité, ce qui couvre nativement la panne physique (stockage, LPAR — *Logical Partition*) ainsi que la disponibilité de DB2 — sans dispositif spécifique à concevoir pour ce projet sur ce point. Seule la topologie du service de sync lui-même entre les deux sites (actif/actif ou actif/passif — deux instances qui traitent simultanément vs. une instance de secours qui prend le relais) reste à préciser, voir [Points non couverts](../../points-ouverts.md#topologie-du-service-de-sync-entre-les-deux-datacenters).
 
 USS étant maintenu à l'identique de GitLab par ce mécanisme, c'est cette garantie qui permet un **mode dégradé** en cas de panne GitLab : compiler, promouvoir et déployer directement depuis le dernier état synchronisé.
 
