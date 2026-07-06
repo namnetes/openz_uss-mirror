@@ -8,7 +8,7 @@
 
 ## Objectif et méthode
 
-Cette page confronte l'architecture de résilience USS à quatre niveaux de textes et de doctrine réglementaires : le [règlement européen DORA](glossaire.md#dora), la doctrine française de l'[ACPR](glossaire.md#acpr), les référentiels internationaux/sectoriels (ISO/IEC 27001, [BCBS](glossaire.md#bcbs)), et enfin la question spécifique de la bijection source/load déjà évoquée dans [Perspectives et synergies](perspectives.md#prise-dimage-du-patrimoine-en-production).
+Cette page confronte l'architecture de résilience USS à cinq niveaux de textes et de doctrine réglementaires : le [règlement européen DORA](glossaire.md#dora), la doctrine française de l'[ACPR](glossaire.md#acpr), les référentiels internationaux/sectoriels (ISO/IEC 27001, [BCBS](glossaire.md#bcbs)), la question spécifique de la bijection source/load déjà évoquée dans [Perspectives et synergies](perspectives.md#prise-dimage-du-patrimoine-en-production), et enfin la conformité RGPD de la conservation des données personnelles dans les journaux d'audit.
 
 Pour chaque niveau, la méthode est la même : vérifier le texte réel (article, date, portée), le confronter à ce que l'architecture documente déjà, et conclure sur ce qui est couvert, ce qui manque, et le niveau de risque si rien n'est fait avant mise en production. Les sources précises (nom du texte, article, date) sont listées en fin de page plutôt que dispersées dans le texte.
 
@@ -91,6 +91,41 @@ Une réserve subsiste, déjà identifiée sous l'angle technique dans [Points no
 
 **Niveau de risque** : 🟢 **Risque faible** sur le mécanisme de tatouage lui-même ; 🟡 **bonne pratique recommandée** de documenter explicitement son origine interne (IG), plutôt que de laisser planer une ambiguïté sur la base légale précise invoquée.
 
+## RGPD — conservation des données personnelles dans les journaux d'audit {: #rgpd-conservation-des-donnees-personnelles }
+
+Le [journal de synchronisation](architecture/resilience/service-synchronisation.md#retention-et-rotation), le journal de mode dégradé, les métadonnées Git (nom et email de commit), ainsi que l'exigence de traçabilité individuelle pour l'imputabilité (RACF, jetons personnels — voir [Identité de l'exécutant](perspectives.md#recompilation-de-masse-du-patrimoine)) contiennent tous des données à caractère personnel, conservées **indéfiniment** pour des raisons de preuve d'audit (DORA, IG).
+
+Le RGPD encadre une telle conservation par deux principes de son article 5 : la **minimisation** (5.1.c — ne traiter que les données strictement nécessaires à la finalité) et la **limitation de la conservation** (5.1.e — ne pas conserver au-delà de la durée nécessaire à cette finalité). Une conservation longue pour des raisons d'audit ou de preuve juridique n'est pas, en soi, incompatible avec ces principes : le RGPD reconnaît qu'une obligation légale distincte (article 6.1.c) peut justifier une conservation prolongée — c'est le même raisonnement, déjà bien établi en pratique bancaire, qui permet par exemple de conserver des données de lutte contre le blanchiment pendant 10 ans, bien au-delà du besoin opérationnel immédiat.
+
+### Ce qui distingue ce cas d'une simple conservation prolongée
+
+Ce qui appelle une vérification spécifique ici, c'est le mot « indéfinie » : le RGPD, et la doctrine de la CNIL qui l'accompagne, demandent que chaque durée de conservation soit **précise et justifiée par catégorie de donnée** — un texte qui impose une obligation de traçabilité (DORA art. 9, arrêté du 3 novembre 2014) justifie une conservation longue, mais aucun des deux ne dit qu'elle doive être sans limite de durée. Une conservation réellement sans fin se rapproche davantage de l'exception d'archivage que prévoit littéralement l'article 5.1.e (archivage dans l'intérêt public, la recherche scientifique/historique ou les statistiques) — une qualification qui, appliquée au journal d'audit d'un miroir de sources bancaire, n'est ni évidente ni à écarter d'emblée. C'est précisément ce type d'arbitrage qu'une analyse DPO doit trancher, pas l'équipe technique qui produit cette documentation.
+
+### Salariés internes et consultants ESN : même protection, chaîne de responsabilité à vérifier
+
+Le RGPD ne traite pas différemment le nom et l'email d'un salarié interne et ceux d'un consultant ESN (Entreprise de Services du Numérique) présents dans ces mêmes journaux : les mêmes principes de protection (minimisation, limitation de conservation, sécurité) s'appliquent aux deux, sans distinction de statut contractuel. La vraie nuance ne porte donc pas sur le contenu de la protection, mais sur la **chaîne de responsabilité du traitement** : la banque reste responsable de traitement pour ses propres systèmes de log (le journal de synchronisation et le journal de mode dégradé sont ses systèmes), mais l'ESN, en tant qu'employeur du consultant, est elle aussi partie prenante. Ce point est à vérifier dans les **contrats ESN existants** (clauses de traitement de données, information du consultant par son propre employeur) — pas seulement dans la charte informatique interne signée côté banque, qui ne couvre qu'une partie de cette chaîne.
+
+### La charte informatique répond à une obligation distincte de celle de minimisation
+
+La charte informatique signée par chaque collaborateur (interne ou consultant) répond à l'obligation d'**information** du RGPD (articles 13-14 — informer la personne que son activité peut être tracée et journalisée). Elle ne répond en revanche pas à l'obligation de **minimisation et de limitation de conservation** (article 5.1.e) : ce sont deux obligations distinctes, qui répondent à des questions différentes — « la personne sait-elle qu'elle est tracée ? » n'est pas la même question que « cette trace est-elle conservée aussi longtemps et avec autant de détail que nécessaire, et pas plus ? ». Faire signer la charte ne dispense donc pas de justifier, par ailleurs, la durée de conservation retenue pour chaque catégorie de donnée.
+
+### « Ces journaux restent internes, jamais publiés » : un argument de proportionnalité, pas d'exemption
+
+Le fait que ces journaux ne quittent jamais le périmètre interne du miroir USS (pas de publication externe, pas de partage avec un tiers) réduit le risque réel encouru par la personne concernée, et peut légitimement peser dans une analyse de proportionnalité — un facteur atténuant, pas négligeable. Mais cet argument n'exempte pas de l'obligation de minimisation elle-même : le RGPD s'applique à tout traitement de données personnelles, qu'il soit publié ou strictement interne. Un traitement confiné en interne reste un traitement, avec les mêmes obligations de fond ; seul le niveau de risque résiduel — et donc la proportionnalité des mesures à prendre — s'en trouve affecté.
+
+### Recommandation à la fonction conformité/DPO
+
+Quatre actions concrètes pour amorcer cette saisine, dans l'ordre où elles conditionnent les suivantes :
+
+a. **Documenter formellement la base légale invoquée** — l'obligation légale de traçabilité (DORA art. 9, arrêté du 3 novembre 2014) — dans un texte daté et explicite qui reconnaît que cette base légale déroge au principe de minimisation de l'article 5.1.e du RGPD, plutôt que de laisser cette dérogation implicite dans les choix d'architecture déjà faits.
+b. **Compenser par des mesures de minimisation complémentaires**, même si la durée de conservation reste indéfinie : restreindre l'accès aux journaux aux seules équipes d'audit/sécurité, et envisager un méta-journal de consultation (qui a consulté ces journaux, et quand) — une trace de la trace, proportionnée au caractère sensible de ce qu'elle protège.
+c. **Vérifier si ce traitement relève d'une Analyse d'Impact relative à la Protection des Données (AIPD, article 35 du RGPD) obligatoire** — une traçabilité individuelle systématique, à grande échelle, de potentiellement plusieurs centaines de développeurs et consultants, présente des caractéristiques (suivi systématique, grande échelle) qui déclenchent fréquemment cette obligation. Poser explicitement cette question au DPO plutôt que de présumer qu'une simple note de justification suffit.
+d. **Vérifier que les contrats ESN couvrent explicitement cette traçabilité individuelle**, au-delà de la charte informatique interne, qui ne s'applique pas forcément de la même façon — ni avec la même force contractuelle — à un consultant qu'à un salarié.
+
+Ces quatre points sont une recommandation destinée à faciliter la saisine de la fonction conformité/DPO — pas une analyse juridique faisant foi.
+
+**Niveau de risque** : 🟡 **Bonne pratique fortement recommandée** — le principe même d'une conservation longue pour preuve d'audit n'est probablement pas un manquement (c'est un cas déjà bien couvert par la pratique bancaire courante), mais l'absence d'une durée précise et d'une base légale documentée par catégorie de donnée est un point que la fonction conformité/DPO doit formaliser avant mise en production — pas une simple formalité administrative à reporter indéfiniment.
+
 ## Synthèse des priorités {: #synthese-des-priorites }
 
 | Niveau | Bloquant | Fortement recommandé | Risque faible |
@@ -99,6 +134,7 @@ Une réserve subsiste, déjà identifiée sous l'angle technique dans [Points no
 | ACPR | — | Vérification à mener auprès de la fonction conformité sur la notification 2020-I-09 | — |
 | ISO/BCBS | — | Cartographie formelle des interdépendances (principe BCBS n° 4) | Certification ISO 27001 elle-même |
 | Bijection source/load | — | Documenter l'origine interne (IG), pas un texte externe | Le mécanisme de tatouage lui-même |
+| RGPD | — | Documenter une durée de conservation précise et sa base légale, par catégorie de donnée (DPO) | Le principe même d'une conservation longue pour preuve d'audit |
 
 ## Sources
 
@@ -110,3 +146,5 @@ Une réserve subsiste, déjà identifiée sous l'angle technique dans [Points no
 - Orientations EBA/GL/2019/02 sur l'externalisation
 - ISO/IEC 27001:2022, Annexe A, contrôle 8.32 « Change management »
 - Comité de Bâle sur le contrôle bancaire (BCBS), *Principles for Operational Resilience*, mars 2021 (BCBS 561)
+- [Règlement (UE) 2016/679 (RGPD) — texte consolidé, EUR-Lex](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng), articles 5 (principes, dont 5.1.c minimisation et 5.1.e limitation de la conservation) et 6 (bases légales, dont 6.1.c obligation légale)
+- [CNIL — Les durées de conservation des données](https://www.cnil.fr/fr/passer-laction/les-durees-de-conservation-des-donnees)

@@ -45,19 +45,13 @@ Date : _______
 
 ### Conformité réglementaire à formaliser
 
-Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conformite-reglementaire.md)) a identifié trois points à traiter formellement, indépendamment des questions déjà listées ci-dessus :
+Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conformite-reglementaire.md)) a identifié quatre points à traiter formellement, indépendamment des questions déjà listées ci-dessus :
 
 - **RTO et RPO à engager formellement** pour le service de synchronisation et sa procédure de resynchronisation, au titre de l'article 12 de DORA — priorité la plus haute de cette section, à recouper avec les lacunes déjà listées dans [Fiabilité du dispositif de mitigation](#fiabilite-du-dispositif-de-mitigation-constats-de-lanalyse-technique) ci-dessus (absence de RTO/RPO déjà notée sous l'angle technique, ici sous l'angle réglementaire).
 - **Vérification à mener auprès de la fonction conformité** sur une éventuelle notification ACPR (instruction 2020-I-09) et une politique d'externalisation écrite couvrant l'usage de GitLab — non tranchée côté équipe technique, sans que cela signifie une absence de démarche menée ailleurs dans l'établissement.
 - **Cartographie formelle des interdépendances** (principe n° 4 des *Principles for Operational Resilience* du Comité de Bâle, BCBS 561) reliant les opérations métier critiques à la chaîne complète de leurs dépendances techniques — non produite à ce stade.
+- **RGPD — durée de conservation précise et base légale à documenter**, par catégorie de donnée personnelle, pour le journal de synchronisation, le journal de mode dégradé et les métadonnées Git conservés indéfiniment — voir l'analyse complète dans [Conformité réglementaire](conformite-reglementaire.md#rgpd-conservation-des-donnees-personnelles). Ce n'est pas la conservation longue elle-même qui est en cause, mais l'absence d'une durée précise et d'une base légale documentée par la fonction conformité/DPO.
 
 ## Questions d'architecture à trancher
 
-### Conservation des données personnelles (RGPD) dans les journaux d'audit
-
-Le journal de synchronisation, le journal de mode dégradé, les métadonnées Git (nom et email de commit), ainsi que l'exigence de traçabilité individuelle pour l'imputabilité (RACF, jetons personnels — un principe hérité de ChangeMan, repris pour les outils consommateurs du miroir, voir [Identité de l'exécutant](perspectives.md#recompilation-de-masse-du-patrimoine)) impliquent tous des données personnelles conservées indéfiniment, pour des raisons de preuve d'audit (DORA, IG — voir [rétention indéfinie du journal de synchronisation](architecture/resilience/service-synchronisation.md#retention-et-rotation)).
-
-La question à trancher n'est pas de remettre en cause cette conservation, mais de documenter formellement l'arbitrage :
-
-- Cette base légale (obligation réglementaire de traçabilité) prévaut-elle explicitement sur le principe de minimisation et de limitation de conservation du RGPD (article 5.1.e) ?
-- Cette analyse doit-elle être formalisée par la fonction conformité/DPO plutôt que rester implicite dans les choix déjà faits ?
+Aucune question d'architecture technique n'est actuellement ouverte — les points restants relèvent d'arbitrages organisationnels ou réglementaires (voir les deux sections ci-dessus).
