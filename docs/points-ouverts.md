@@ -53,17 +53,6 @@ Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conf
 
 ## Questions d'architecture à trancher
 
-### Service de vérification de l'intégrité (propreté) du miroir à la demande
-
-`SYNC_STATUS` (voir [Vérification côté consommateur](architecture/resilience/detection-defauts.md#verification-cote-consommateur-verrou-de-synchro)) répond bien à *« ce workspace est-il synchro, à jour par rapport à GitLab ? »* via le statut `PENDING`/`READY` — mais ne répond pas à *« ce workspace est-il propre, son contenu est-il intègre ? »*, à la demande d'un consommateur précis avant une lecture.
-
-Le seul mécanisme qui s'en approche aujourd'hui est la [réconciliation périodique](architecture/resilience/detection-defauts.md#reconciliation-periodique) : elle compare les hashes de `HEAD` entre USS et GitLab, mais à sa propre cadence (potentiellement une fois par jour), pas à l'appel d'un consommateur donné juste avant qu'il ne lise une branche précise. Une corruption survenue *après* un `STATUS = READY` déjà posé (corruption zFS, objet git endommagé sans qu'aucune opération de sync n'échoue entre-temps) ne serait donc détectée qu'au prochain cycle de réconciliation, jamais par un consommateur qui interroge `SYNC_STATUS` juste avant de lire.
-
-Reste à concevoir un service de vérification d'intégrité complémentaire, consultable à la demande comme l'est `SYNC_STATUS` pour la fraîcheur :
-
-- Faut-il exposer, à côté de `STATUS`, une preuve d'intégrité vérifiable à la volée (par exemple un hash de contenu recalculé, ou un simple `git fsck` déclenché à la demande) plutôt que de s'appuyer uniquement sur le rapport de réconciliation déjà archivé ?
-- Quel est le coût de cette vérification à la demande si elle doit rester assez rapide pour ne pas ralentir chaque lecture d'un consommateur ?
-
 ### Conservation des données personnelles (RGPD) dans les journaux d'audit
 
 Le journal de synchronisation, le journal de mode dégradé, les métadonnées Git (nom et email de commit), ainsi que l'exigence de traçabilité individuelle pour l'imputabilité (RACF, jetons personnels — un principe hérité de ChangeMan, repris pour les outils consommateurs du miroir, voir [Identité de l'exécutant](perspectives.md#recompilation-de-masse-du-patrimoine)) impliquent tous des données personnelles conservées indéfiniment, pour des raisons de preuve d'audit (DORA, IG — voir [rétention indéfinie du journal de synchronisation](architecture/resilience/service-synchronisation.md#retention-et-rotation)).

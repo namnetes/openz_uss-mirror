@@ -184,6 +184,32 @@ Deux cas distincts, selon que le consommateur tourne ou non dans le périmètre 
 
 Qui obtient ce GRANT, sous quel compte, et comment ce compte est provisionné et renouvelé relève de chaque équipe consommatrice et de sa propre gouvernance d'accès — pas de ce projet (voir [Périmètre du projet et responsabilités](../index.md#acces-en-lecture-des-consommateurs)). Ce que ce projet garantit, c'est seulement la nature du canal exposé — strictement `SELECT` sur `SYNC_STATUS`, quel que soit le compte qui l'emprunte — pas la liste des comptes autorisés à s'en servir. L'imputabilité individuelle, centrale pour une action qui *modifie* quelque chose (voir [Identité de l'exécutant](../../perspectives.md#recompilation-de-masse-du-patrimoine)), n'a de toute façon pas la même portée ici : consulter un statut avant lecture ne modifie rien et n'engage aucune responsabilité individuelle à tracer.
 
+### Vérification de la propreté (intégrité du contenu)
+
+`SYNC_STATUS` répond à *« ce workspace est-il synchro ? »* (fraîcheur) — pas à *« ce workspace est-il propre ? »* (intégrité du contenu), voir [Périmètre du projet et responsabilités](../index.md#acces-en-lecture-des-consommateurs). La [réconciliation périodique](#reconciliation-periodique) s'en approche, mais ne compare que le hash de `HEAD` — une référence, pas le contenu réel des fichiers — et seulement à sa propre cadence, jamais à l'appel d'un consommateur précis juste avant une lecture. Une corruption survenue *après* un `STATUS = READY` déjà posé (corruption zFS, écriture inattendue) ne serait donc détectée qu'au prochain cycle de réconciliation.
+
+**Décision retenue : aucune nouvelle brique d'infrastructure — le consommateur vérifie lui-même la propreté, localement, avec `git status --porcelain`.**
+
+Le raisonnement tient à une seule observation : USS est strictement en lecture en dehors d'une opération de synchro (voir [La contrainte de départ](../resilience/index.md#la-contrainte-de-depart)) — rien ni personne n'est censé modifier un fichier d'un workspace entre deux `reset --hard` du service de sync. Toute divergence entre les fichiers réellement présents sur disque et ce que git a enregistré au dernier `reset --hard` — qu'elle vienne d'une corruption zFS ou d'une écriture non autorisée, peu importe la cause — est donc par construction une anomalie à détecter. C'est exactement ce que `git status`/`git diff` savent déjà faire nativement, sans aucun nouveau composant :
+
+```bash
+git -C <workspace> status --porcelain
+# Sortie vide  → workspace propre, lecture fiable
+# Toute ligne  → fichier modifié, supprimé ou inattendu (untracked) : anomalie
+```
+
+Une sortie non vide doit être traitée avec la même sévérité qu'un `SYNC_STATUS` resté bloqué à `PENDING` (voir plus haut) : le consommateur refuse la lecture, l'anomalie remonte à la même supervision, et une [resynchronisation complète](../gestion-incidents.md#resynchronisation-complete) de cette branche précise est déclenchée — sans nouveau canal d'alerte à créer.
+
+!!! info "Pourquoi ce contrôle reste bon marché"
+    Git ne recalcule le hash d'un fichier que si son `mtime`/sa taille en cache diffère de ce qu'il a enregistré — pour un workspace réellement inchangé depuis le dernier `reset --hard` (le cas normal, l'immense majorité des lectures), la vérification se limite à un `stat()` par fichier suivi, pas une relecture de contenu. Le coût ne monte au recalcul complet que précisément quand quelque chose a changé — exactement le cas où ce coût supplémentaire est justifié.
+
+    Deux alternatives, écartées pour cette raison :
+
+    - **`git fsck`** vérifie l'intégrité de la base d'objets entière (`repo/`, partagée par tous les workspaces d'une même application, voir [Les workspaces USS](../resilience/index.md#les-workspaces-uss-une-branche-un-repertoire)), pas seulement les fichiers d'une branche — bien plus coûteux, et redondant à exécuter à chaque lecture d'un consommateur qui ne s'intéresse qu'à sa propre branche.
+    - **Un recalcul de hash "à la main"** (en dehors de git) relirait systématiquement chaque fichier intégralement à chaque lecture — annulant précisément l'optimisation de cache stat que `git status` offre déjà nativement.
+
+Cette même vérification peut enrichir la réconciliation périodique elle-même (ajouter un `git status --porcelain` par branche à la comparaison de hash déjà en place), pour couvrir aussi une corruption qui laisserait `HEAD` inchangé — un raffinement du mécanisme existant, pas une nouvelle brique à opérer.
+
 ---
 
 Pour la liste des causes de désynchro identifiées et leurs conséquences concrètes sur les consommateurs, voir [Catalogue des pannes et conséquences](pannes-et-consequences.md).

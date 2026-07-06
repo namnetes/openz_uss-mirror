@@ -38,8 +38,8 @@ Les équipes qui consomment le miroir USS (pipelines de build, outils de packagi
 Ce qu'il **doit** fournir en contrepartie, ce sont des services permettant à ces consommateurs de vérifier, avant de lire un workspace, que le miroir est :
 
 - **synchro** (à jour par rapport à GitLab) — couvert par le statut `PENDING`/`READY` de `SYNC_STATUS`, voir [Vérification côté consommateur](resilience/detection-defauts.md#verification-cote-consommateur-verrou-de-synchro) ;
-- **propre** (contenu intègre) — **non couvert aujourd'hui** par un service à la demande : seule la réconciliation périodique compare les hashes, à sa cadence, pas à l'appel d'un consommateur précis — voir [Points non couverts](../points-ouverts.md#service-de-verification-de-lintegrite-proprete-du-miroir-a-la-demande).
+- **propre** (contenu intègre) — couvert par une vérification locale `git status --porcelain`, sans nouvelle brique d'infrastructure, voir [Vérification de la propreté](resilience/detection-defauts.md#verification-de-la-proprete-integrite-du-contenu).
 
 ### Ce qui reste de la responsabilité de ce projet {: #ce-qui-reste-de-la-responsabilite-de-ce-projet }
 
-Le service de synchronisation lui-même (webhooks, cycle de vie d'une branche, heartbeat, réconciliation), le verrou de synchro déjà exposé aux consommateurs, et — à concevoir — le service de vérification d'intégrité qui manque encore aujourd'hui.
+Le service de synchronisation lui-même (webhooks, cycle de vie d'une branche, heartbeat, réconciliation), ainsi que le verrou de synchro et la vérification de propreté déjà exposés aux consommateurs.
