@@ -39,6 +39,8 @@ Cette documentation désigne désormais l'insertion de l'identifiant de package 
 
     Le lien package ↔ commit ↔ load est, lui, stocké côté **DB2** : c'est DB2 qui porte la mémoire de traçabilité de la plateforme (au même titre que `SYNC_STATUS` pour la synchronisation USS, voir [Heartbeat DB2](architecture/resilience/detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)). Cette information vient enrichir le **registre central de traçabilité des packages déjà existant**, plutôt qu'une table dédiée séparée : l'identifiant de package en est déjà le discriminant principal, ce registre est donc la clé d'entrée naturelle pour y associer le commit et le load module correspondants.
 
+    Ce même instant sert aussi à poser, côté dépôt git, un **tag de déploiement** sur le commit source — voir [Rétention et purge des objets git](architecture/resilience/service-synchronisation.md#retention-et-purge-des-objets-git).
+
     Deux nuances pour les copybooks et l'assembleur : un **copybook** (COBOL/C) n'est pas une unité de compilation autonome — il est inclus (`COPY`) dans N programmes et n'a pas d'IDR propre ; sa modification impose de recompiler (et donc de retatouer) tous les programmes qui l'incluent. Pour l'**assembleur HLASM**, le link-edit peut agréger plusieurs [*object decks*](glossaire.md#object-deck) en un seul load module (programme principal + sous-programmes liés) : la bijection n'est donc pas toujours strictement 1 source ↔ 1 load, même dans ce cas dit « unitaire ».
 
 !!! note "Panels ISPF et REXX — pourquoi ce cas est clos"
@@ -87,8 +89,8 @@ Pour les composants modernes (Java, CICS-OSGi, Python, Node.js), c'est l'**ident
 
 Le déclencheur de cet archivage n'est pas technique mais métier : c'est le **gestionnaire du patrimoine applicatif** — l'utilisateur propriétaire de l'application au sens de la cartographie [CAPIREF](glossaire.md#application-code-capiref) — qui demande l'archivage d'un composant qu'il juge obsolète. La rétention de ces archives n'est, par construction, soumise à aucune limite de durée.
 
-!!! info "Traçabilité de la demande d'archivage"
-    Au même titre que l'exécution technique de l'archivage doit être journalisée, la décision elle-même (qui a demandé l'archivage de quel composant, et quand) devrait être tracée avec la même rigueur — ce point n'est pas encore formalisé, voir [Points non couverts](points-ouverts.md#tracabilite-de-la-demande-darchivage).
+!!! info "Traçabilité de la demande d'archivage — hors périmètre du miroir"
+    Qui a demandé l'archivage de quel composant, et quand : cette traçabilité relève de l'outil d'archivage et du projet qui le porte — un projet connexe distinct (voir l'avertissement en tête de cette page), pas de ce miroir USS. Le rôle du miroir s'arrête à ce qui est déjà décrit plus haut : il s'actualise automatiquement dès qu'une suppression logique est effectuée sur GitLab, par le même mécanisme de synchronisation que pour n'importe quel autre événement de branche. Il n'y a rien de plus à concevoir ici.
 
 ### Suppression totale d'un dépôt applicatif
 
@@ -115,10 +117,10 @@ Cet outil doit, selon le cas :
 
 Comme pour la prise d'image, et sur le même principe que celui posé dans [Optimisation potentielle de la chaîne de build](#optimisation-potentielle-de-la-chaine-de-build), ce traitement de masse pourrait s'appuyer sur les workspaces USS déjà synchronisés plutôt que de récupérer les sources depuis GitLab pour chaque composant à recompiler.
 
-!!! note "Identité de l'exécutant — un héritage à préserver"
+!!! note "Identité de l'exécutant — un héritage à préserver, hors périmètre du miroir"
     Sous ChangeMan, qu'il s'agisse d'un développeur ou d'une équipe support, chacun utilise l'outil et ses API avec ses **droits [RACF](glossaire.md#racf) personnels** : aucun utilisateur technique générique n'est employé. Chaque action reste donc individuellement imputable, sans dispositif de traçabilité supplémentaire à concevoir.
 
-    Ce principe doit être préservé côté Git : les actions de cet outil (création de branche, import de sources, build) devraient elles aussi s'exécuter pour le compte de l'utilisateur réel — et non d'un compte de service partagé — pour conserver la même imputabilité individuelle. Le mécanisme technique pour y parvenir côté API GitLab (jeton personnel, *impersonation*, OAuth) reste à définir, voir [Points non couverts](points-ouverts.md#identite-de-lexecutant-pour-les-outils-interactifs).
+    Ce principe doit être préservé côté Git : les actions de cet outil (création de branche, import de sources, build) devraient elles aussi s'exécuter pour le compte de l'utilisateur réel — et non d'un compte de service partagé — pour conserver la même imputabilité individuelle. Mais le choix du mécanisme technique pour y parvenir côté API GitLab (jeton personnel, *impersonation*, OAuth) relève de cet outil de recompilation et du projet qui le porte — un projet connexe distinct (voir l'avertissement en tête de cette page). Le miroir USS ne fait que fournir en lecture les workspaces déjà synchronisés ; il n'intervient à aucun titre dans la couche d'authentification ou d'identité de cet outil consommateur.
 
 ---
 

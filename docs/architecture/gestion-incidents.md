@@ -40,6 +40,17 @@ Toutes les actions habituellement portées par la chaîne CI/CD (*Continuous Int
 
 Comme sous ChangeMan, où chacune de ces actions dégradées était tracée dans un journal dédié, ce même besoin s'applique ici : toute action exécutée hors GitLab pendant la panne (qui, quoi, sur quelle application/branche/package, quand) doit être enregistrée dans **le journal du mode dégradé**, distinct du journal de synchronisation normal. Ce journal sert de base, au retour de GitLab, pour reporter manuellement dans GitLab l'ensemble des actions effectuées pendant la panne (commits, tags, statuts de déploiement) et restaurer la cohérence entre GitLab et la réalité de production.
 
+### Correctif de code en urgence pendant la panne
+
+**Décision retenue : le mode dégradé interdit toute modification de code tant que GitLab n'est pas revenu — on ne fait que rejouer le dernier état déjà synchronisé (build, promotion, déploiement).**
+
+Cette interdiction n'est pas une contrainte ajoutée pour ce cas précis : c'est une conséquence directe de la règle déjà posée plus haut sur cette page — USS reste strictement en lecture, y compris en mode dégradé, et seul le service de sync est autorisé à y écrire. Éditer un source directement sur USS pendant la panne violerait cette règle, et romprait la garantie d'identité avec GitLab que ce miroir a précisément pour vocation de certifier (voir [La contrainte de départ](resilience/index.md#la-contrainte-de-depart)) : au retour de GitLab, le prochain `fetch`/`reset --hard` du service de sync écraserait silencieusement ce correctif sans laisser de trace, puisque GitLab — la source de vérité — n'en aurait jamais eu connaissance.
+
+!!! warning "Un vrai besoin de correctif vital reste possible — mais hors de ce mécanisme"
+    Rien n'empêche qu'un correctif de production soit réellement nécessaire pendant que GitLab est inaccessible. Ce cas n'appelle toutefois pas une procédure « hors Git » propre à ce projet : c'est le processus d'urgence générique de gestion des changements de l'établissement (déjà existant, indépendant de GitLab et du service de sync) qui prend le relais, exactement comme il le ferait pour toute autre panne d'infrastructure empêchant un déploiement normal. Un tel correctif s'appliquerait alors directement sur le *load module* en production — jamais sur USS — via cette procédure d'urgence existante.
+
+    Un correctif appliqué de cette façon rompt temporairement la [bijection source/load](../perspectives.md#prise-dimage-du-patrimoine-en-production) exigée par l'IG (*Inspection Générale*) : le binaire alors en production ne correspond plus à un commit GitLab. Dès le retour de GitLab, ce correctif doit être **reproduit comme un vrai commit**, buildé et tatoué normalement, pour restaurer la bijection — et non laissé tel quel indéfiniment. Le [journal du mode dégradé](#mode-degrade-panne-gitlab) tracera cette divergence temporaire au même titre que les autres actions dégradées, pour que l'auditeur retrouve sans ambiguïté la période et la raison pendant laquelle la bijection n'était pas respectée.
+
 ---
 
 ## Vérification de l'état ISO

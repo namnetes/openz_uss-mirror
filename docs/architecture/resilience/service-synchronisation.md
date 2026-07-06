@@ -74,6 +74,41 @@ flowchart TD
 
 Ce diagramme se lit de gauche à droite : le développeur agit sur GitLab (quel que soit le canal), GitLab notifie le service de sync par webhook, qui met à jour à la fois USS (les sources) et DB2 (l'état de la synchro, plus son propre signal de vie) via **DRS** (*Db2 REST Services* — l'interface qui expose DB2 sous forme d'appels API REST) ; un job **TWS/OPC** (*Tivoli Workload Scheduler* — l'ordonnanceur de traitements batch du Mainframe) sonde ce signal de vie toutes les 5 minutes, indépendamment de toute activité ; le job de réconciliation vérifie périodiquement la cohérence entre GitLab, DB2 et USS ; un consommateur (pipeline, outil de packaging) vérifie le statut en DB2 avant de lire les sources sur USS — voir [Détection et gestion des défauts de synchro](detection-defauts.md).
 
+## Sécurisation du webhook entrant
+
+Contrairement à l'appel zCX → DRS ([Heartbeat DB2](detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)), strictement interne au périmètre z/OS et couvert par un PassTicket RACF, le webhook entrant traverse la frontière avec GitLab — une infrastructure qui ne parle pas RACF. Sans protection, n'importe qui connaissant l'URL du webhook pourrait déclencher une resynchronisation forcée sur n'importe quelle branche.
+
+GitLab propose un mécanisme natif pour cela : un **secret token**, configuré une fois dans les paramètres du webhook (*Settings → Webhooks*), renvoyé tel quel dans l'en-tête HTTP `X-Gitlab-Token` à chaque appel. Le service de sync doit vérifier cet en-tête avant de traiter quoi que ce soit d'autre.
+
+### Où stocker ce secret côté zCX
+
+zCX exécute des containers Linux dans un environnement isolé du z/OS natif : le code applicatif à l'intérieur d'un container ne peut pas appeler directement les services RACF/SAF (RACROUTE) comme le ferait un programme natif z/OS. La seule chaîne d'authentification RACF déjà éprouvée pour ce container précis est celle utilisée pour DB2/DRS (compte technique + PassTicket, voir [Heartbeat DB2](detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) — c'est ce canal qu'on réutilise, plutôt que d'introduire un second mécanisme différent pour ce seul secret.
+
+zCX permet aussi de monter un dataset MVS protégé RACF via NFS, mais cette autorisation s'applique alors à l'ensemble de l'appliance zCX (un seul certificat client pour tout le trafic NFS de l'appliance) — une granularité plus grossière que l'appel DRS, scopé au container qui héberge le service de sync. Réutiliser DRS garde donc une isolation plus fine, sans nouveau composant à opérer.
+
+**Décision retenue : une nouvelle table DB2, protégée exactement comme `SYNC_STATUS` et `SYNC_SERVICE_HEARTBEAT` (GRANT DB2 + RACF), accédée via ce même canal DRS.**
+
+```sql
+-- Une seule ligne : le secret webhook est un paramètre du service, pas un
+-- état métier par branche (même esprit que SYNC_SERVICE_HEARTBEAT).
+CREATE TABLE SYNC_WEBHOOK_SECRET (
+    SECRET_HASH  VARCHAR(64) NOT NULL,  -- SHA-256 du secret, jamais le secret en clair
+    ROTATED_AT   TIMESTAMP NOT NULL
+);
+```
+
+!!! info "Pourquoi un hash plutôt que le secret en clair"
+    Vérifier un webhook ne demande pas de connaître le secret, seulement de savoir si deux valeurs sont égales — exactement le même besoin qu'une vérification de mot de passe. Stocker une empreinte **SHA-256** (*Secure Hash Algorithm* — une fonction qui transforme n'importe quelle valeur en une empreinte de taille fixe, impossible à inverser en pratique) plutôt que le secret en clair évite qu'une fuite de la table (sauvegarde mal protégée, GRANT trop large) ne rende le vrai secret exploitable. La vérification compare le hash de la valeur reçue (`X-Gitlab-Token`) au hash stocké — jamais le secret lui-même.
+
+Au démarrage, le service de sync récupère `SECRET_HASH` via DRS (même compte technique, même PassTicket que pour le heartbeat) et le garde en mémoire ; il ne l'écrit jamais sur disque dans le container. Un rafraîchissement périodique (ou déclenché par un échec de vérification) permet de prendre en compte une rotation sans redémarrer le container.
+
+### Génération et rotation
+
+- **Génération** : un secret aléatoire suffisamment long (ex. 32 octets, `openssl rand -hex 32`), généré une fois par un opérateur habilité.
+- **Distribution** : saisi manuellement dans GitLab (*Settings → Webhooks → Secret token* — GitLab ne le réaffiche plus en clair une fois saisi), et son empreinte SHA-256 inséré dans `SYNC_WEBHOOK_SECRET` via le canal DRS existant, dans la même opération de provisionnement.
+- **Rotation** : la cadence reste à définir. Le jeton de service utilisé par la réconciliation pour appeler l'API GitLab suit un schéma voisin mais distinct (rotation à échéance fixe plutôt qu'à définir) — voir [Sécurisation de l'appel sortant vers l'API GitLab](detection-defauts.md#securisation-de-lappel-sortant-vers-lapi-gitlab).
+- **Défense complémentaire** : un allowlist IP (adresses connues des relais GitLab) reste une option en plus du secret token, pas un substitut.
+
 ## Cycle de vie d'une branche
 
 Un nom de branche GitLab peut contenir des `/` — quelle que soit la convention de nommage utilisée par l'équipe (`pkg/PKG-20260616-0042`, `DAY1000001/features-demo`, etc.). Or chaque workspace USS est un répertoire **à plat** : un `/` y serait interprété comme un séparateur de chemin et créerait des sous-répertoires non désirés plutôt qu'un seul workspace.
@@ -111,22 +146,28 @@ sequenceDiagram
     participant USS
 
     Dev->>GitLab: git push (nouveau commit)
-    GitLab->>SyncSvc: webhook HTTP (push, commit_hash)
+    GitLab->>SyncSvc: webhook HTTP (push, commit_hash)<br/>en-tête X-Gitlab-Token
     activate SyncSvc
-    SyncSvc->>DB2: STATUS = 'PENDING'<br/>TARGET_COMMIT_HASH = commit_hash
-    SyncSvc->>USS: git fetch
-    SyncSvc->>USS: git reset --hard commit_hash
-    USS-->>SyncSvc: OK
-    SyncSvc->>SyncSvc: écrit une ligne dans sync-AAAA.jsonl
-    SyncSvc->>DB2: STATUS = 'READY'<br/>COMMIT_HASH = TARGET_COMMIT_HASH
-    SyncSvc-->>GitLab: HTTP 2xx
+    SyncSvc->>SyncSvc: vérifie X-Gitlab-Token<br/>(hash comparé à SECRET_HASH)
+    alt Token invalide
+        SyncSvc-->>GitLab: HTTP 401<br/>(aucune opération DB2/USS)
+    else Token valide
+        SyncSvc->>DB2: STATUS = 'PENDING'<br/>TARGET_COMMIT_HASH = commit_hash
+        SyncSvc->>USS: git fetch
+        SyncSvc->>USS: git reset --hard commit_hash
+        USS-->>SyncSvc: OK
+        SyncSvc->>SyncSvc: écrit une ligne dans sync-AAAA.jsonl
+        SyncSvc->>DB2: STATUS = 'READY'<br/>COMMIT_HASH = TARGET_COMMIT_HASH
+        SyncSvc-->>GitLab: HTTP 2xx
+    end
     deactivate SyncSvc
 
     Note over DB2,USS: Tant que STATUS = 'PENDING',<br/>un consommateur qui lit USS<br/>risque une lecture partielle.
 ```
 
-Trois points que ce diagramme rend visibles, là où le tableau ne le pouvait pas :
+Quatre points que ce diagramme rend visibles, là où le tableau ne le pouvait pas :
 
+- La vérification du token est la **toute première étape**, avant tout accès à DB2 ou USS — un token invalide ne déclenche donc strictement aucune opération, pas même une écriture `PENDING` (voir [Sécurisation du webhook entrant](#securisation-du-webhook-entrant)).
 - `STATUS` passe à `PENDING` **avant** toute opération sur USS, pas après — un consommateur qui interroge DB2 pendant la fenêtre `fetch`/`reset --hard` voit donc bien `PENDING`, jamais un `READY` prématuré.
 - `STATUS` ne repasse à `READY` qu'**après** la fin du `reset --hard` et l'écriture du journal — dans cet ordre précis, conformément à la règle posée dans [Vérification côté consommateur](detection-defauts.md#verification-cote-consommateur-verrou-de-synchro).
 - La réponse HTTP `2xx` à GitLab n'est envoyée qu'**en dernier**, une fois toute la chaîne terminée avec succès — c'est ce qui permet au calendrier de relance de GitLab (voir l'encart *"Comment GitLab détecte qu'un webhook a échoué"* plus haut sur cette page) de se déclencher si une étape intermédiaire échoue, plutôt que de considérer l'événement traité à tort.
@@ -154,6 +195,23 @@ Trois points que ce diagramme rend visibles, là où le tableau ne le pouvait pa
     C'est donc le **script dans son ensemble** (vérification + branchement + `reset --hard`) qui est idempotent, pas une commande Git isolée. Résultat : que le webhook de push arrive avant ou après l'amorçage du workspace, l'exécution converge vers le même état final — sans logique dédiée supplémentaire pour distinguer les deux cas.
 
 Chaque opération est **horodatée et journalisée** avec le hash de commit correspondant. Ce journal constitue la preuve d'audit : à chaque instant, on peut établir quel commit était présent sur USS et à quelle heure.
+
+## Rétention et purge des objets git
+
+`git worktree remove` (voir [tableau ci-dessus](#cycle-de-vie-dune-branche)) supprime le **répertoire de travail** de la branche — pas les objets git eux-mêmes (commits, arbres, blobs), qui restent dans `repo/`, le dépôt partagé entre tous les workspaces d'une même application (voir [Les workspaces USS](index.md#les-workspaces-uss-une-branche-un-repertoire)). Ces objets ne redeviennent candidats à la suppression que lors d'un `git gc`/repack — et seulement s'ils ne sont plus **atteignables** depuis aucune référence (branche ou tag). C'est ce mécanisme, pas une politique à inventer, qui tranche la question du dépôt qui reste actif après suppression d'une branche : faut-il interdire tout `gc`/repack agressif sur un tel dépôt ?
+
+**Décision retenue : non, `git gc`/repack n'ont pas besoin d'être interdits — à condition qu'un tag protège chaque commit qui doit être retenu.**
+
+Un `git gc` (même agressif) ne touche jamais un objet référencé par un tag, quelle que soit l'ancienneté du tag — contrairement à un objet seulement atteignable par une branche, que la suppression de cette branche rend orphelin. La rétention indéfinie exigée par la bijection source/load de l'IG (*Inspection Générale*, voir [Archivage des sources et load modules obsolètes](../../perspectives.md#archivage-des-sources-et-load-modules-obsoletes)) ne dépend donc pas de la survie de la branche GitLab, mais de l'existence d'un **tag de déploiement** sur le commit qui a produit le load module.
+
+!!! info "Le tag de déploiement, posé au même moment que le tatouage"
+    Plutôt que de compter sur une convention manuelle ("un tag créé avant suppression de la branche"), ce tag doit être créé **automatiquement par la CI**, au même instant que le [tatouage](../../perspectives.md#prise-dimage-du-patrimoine-en-production) du load module (build/link-edit) — les deux actent le même événement : ce commit précis a produit ce binaire précis. Un tag annoté, nommé d'après l'identifiant de package (même discriminant que le tatouage, pour garder une seule clé de jointure), rattache ainsi durablement le commit source à son load module, indépendamment du sort ultérieur de la branche GitLab qui l'a porté.
+
+    Une branche qui ne produit jamais de load module (abandonnée avant merge, retours de code review écrasés par un `push --force`) ne reçoit jamais ce tag — ses objets, eux, restent des candidats légitimes à la purge par `gc`, ce qui est le comportement normal et souhaité : seul ce qui a été réellement livré en production doit être retenu indéfiniment, pas chaque commit intermédiaire de travail.
+
+Avec cette discipline en place, un `git gc` périodique côté service de sync n'est donc pas une menace pour la rétention — c'est une hygiène de dépôt standard, qui borne la croissance de `repo/` en écartant ce qui n'a jamais eu vocation à être conservé, sans jamais toucher un commit tagué.
+
+**Autorité sur la suppression d'un tag ou une purge d'objets (deuxième question du point ouvert)** : la politique de rétention déjà actée pour l'archivage de composant est elle-même **indéfinie** ([Archivage des sources et load modules obsolètes](../../perspectives.md#archivage-des-sources-et-load-modules-obsoletes)) — il n'existe donc, par construction, aucun scénario légitime où un tag de déploiement serait supprimé ou un objet purgé sélectivement au sein d'un dépôt applicatif actif. La seule suppression prévue à ce jour est celle, totale, du dépôt entier — arrêt définitif d'une application ou migration de version majeure (voir [Suppression totale d'un dépôt applicatif](../../perspectives.md#suppression-totale-dun-depot-applicatif)) — déjà tranchée avec la même autorité, le **gestionnaire du patrimoine applicatif**. Si la volumétrie imposait un jour une purge partielle malgré tout, ce serait une dérogation à la politique de rétention indéfinie déjà actée, pas une décision opérationnelle isolée : elle relèverait donc de cette même autorité, jamais d'une initiative technique du service de sync. Le compte technique du service de sync (voir [Heartbeat DB2](detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) n'a d'ailleurs aucun besoin de droits de suppression de tag pour son fonctionnement normal — seule la création de worktrees et les opérations `fetch`/`reset --hard` lui sont nécessaires.
 
 ## Journalisation des opérations
 
