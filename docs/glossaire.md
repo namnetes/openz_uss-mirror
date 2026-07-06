@@ -103,6 +103,9 @@ Un signal envoyé à intervalle régulier pour prouver qu'un service est toujour
 
 ## I
 
+**ICSF (Integrated Cryptographic Service Facility)**{: #icsf-integrated-cryptographic-service-facility }
+Le service z/OS natif de cryptographie matérielle — l'équivalent, pour le chiffrement et le déchiffrement, de ce que RACF est pour les identités et les habilitations. Utilisé dans ce projet pour chiffrer au repos le jeton de service utilisé par la réconciliation pour appeler l'API GitLab, avec une clé elle-même protégée par RACF — voir [Sécurisation de l'appel sortant vers l'API GitLab](architecture/resilience/detection-defauts.md#securisation-de-lappel-sortant-vers-lapi-gitlab).
+
 **IDR (Identification Record)**{: #idr-identification-record }
 Une zone du load module ou du *program object*, prévue par IBM dans le format binaire, où le *binder* inscrit automatiquement sa propre version et la date du link-edit — et la date de compilation si le compilateur la fournit. L'instruction `IDENTIFY` du binder permet d'y ajouter du texte libre (jusqu'à 80 caractères) sans toucher au source : c'est ce mécanisme que ChangeMan réutilise pour y inscrire l'identifiant de package. Consultable via l'option `LISTIDR` de l'utilitaire AMBLIST.
 
