@@ -68,6 +68,11 @@ Le composant qui permet à un programme d'interroger ou de mettre à jour DB2 vi
 **DORA**{: #dora }
 *Digital Operational Resilience Act* — un règlement européen qui impose aux établissements financiers de pouvoir continuer à fonctionner, ou se reconstruire rapidement, en cas d'incident informatique majeur (panne, cyberattaque).
 
+## E
+
+**Exploitant**{: #exploitant }
+L'équipe ou l'entité responsable de l'administration de l'infrastructure z/OS au global — LPAR, réseau inter-datacenters, moteur DB2 lui-même — avec ses propres procédures d'alerte, de notification et d'exercices PSI. Distincte de l'équipe responsable de ce projet de miroir USS, qui n'opère qu'au niveau applicatif au-dessus de cette infrastructure — voir [Périmètre du projet et responsabilités](architecture/index.md#infrastructure-z-os-a-la-charge-de-lexploitant).
+
 ## G
 
 **Gigue (*jitter*)**{: #gigue-jitter }

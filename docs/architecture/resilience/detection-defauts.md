@@ -17,7 +17,7 @@ Pour un panorama des causes possibles de défaut et de leurs conséquences concr
 
 Le service de sync écrit chaque opération dans une table **DB2 for z/OS**, via **DRS** (*Db2 REST Services* — le composant IBM qui expose les stored procedures DB2 comme endpoints REST, déjà utilisé par le reste de la plateforme), en plus du journal USS. C'est une extension du registre central déjà utilisé pour la traçabilité des packages — aucune nouvelle brique d'infrastructure, juste une table de plus et un appel DRS de plus par webhook traité.
 
-Cet appel zCX → DRS s'authentifie avec un **compte technique** dédié, via **PassTicket** RACF (*Resource Access Control Facility*) : le secret n'est jamais stocké en clair côté zCX, puisque le PassTicket est à usage unique et généré à la demande à partir d'un secret partagé déjà connu de RACF et de DRS. Cette partie de la chaîne de sécurité — strictement interne au périmètre z/OS — est donc couverte. Ce qui reste à trancher (authentification du webhook entrant depuis GitLab, et rotation du jeton d'API GitLab utilisé par la réconciliation) est suivi dans [Points non couverts](../../points-ouverts.md#securisation-des-echanges-avec-gitlab).
+Cet appel zCX → DRS s'authentifie avec un **compte technique** dédié, via **PassTicket** RACF (*Resource Access Control Facility*) : le secret n'est jamais stocké en clair côté zCX, puisque le PassTicket est à usage unique et généré à la demande à partir d'un secret partagé déjà connu de RACF et de DRS. Cette partie de la chaîne de sécurité — strictement interne au périmètre z/OS — est donc couverte. Les deux flux externes avec GitLab le sont désormais aussi : l'authentification du webhook entrant (voir [Sécurisation du webhook entrant](service-synchronisation.md#securisation-du-webhook-entrant)) et l'appel sortant du job de réconciliation vers l'API GitLab (voir [Sécurisation de l'appel sortant vers l'API GitLab](#securisation-de-lappel-sortant-vers-lapi-gitlab) plus bas sur cette page).
 
 Voici la structure de cette table :
 
@@ -109,6 +109,43 @@ Sa cadence peut désormais être **plus légère qu'auparavant** (ex. une fois p
 
 En cas de divergence, le job journalise l'écart, déclenche une alerte vers l'équipe d'exploitation (canal de supervision z/OS existant) et lance automatiquement la resynchronisation complète sur les branches concernées — sans attendre d'intervention manuelle.
 
+### Sécurisation de l'appel sortant vers l'API GitLab
+
+Le webhook entrant s'authentifie par un secret que GitLab nous envoie (voir [Sécurisation du webhook entrant](service-synchronisation.md#securisation-du-webhook-entrant)). Ici c'est l'inverse : le job de réconciliation appelle l'API GitLab, et doit donc lui **présenter** un jeton que GitLab reconnaît.
+
+**Compte et scope retenus** : un jeton rattaché à un **compte de service GitLab dédié** (bot), jamais un jeton personnel — cohérent avec le principe d'imputabilité individuelle déjà posé ailleurs dans ce projet (voir [Identité de l'exécutant](../../perspectives.md#recompilation-de-masse-du-patrimoine)), qui ne s'applique pas ici puisqu'il s'agit d'un processus automatisé, pas d'une action humaine. Scope minimal, en **lecture seule** (branches/commits) : ce jeton ne doit jamais pouvoir écrire quoi que ce soit sur GitLab.
+
+**Stockage** : une nouvelle table DB2, distincte de `SYNC_WEBHOOK_SECRET`, avec un GRANT restreint au seul compte technique du job de réconciliation — une fuite d'un composant ne doit pas donner accès aux secrets de l'autre (séparation des privilèges). Contrairement au secret webhook, vérifié par simple égalité et donc stocké sous forme de hash, ce jeton doit être **récupérable en clair** pour être présenté à GitLab : il est donc chiffré au repos via **ICSF** (*Integrated Cryptographic Service Facility* — le service z/OS natif de cryptographie matérielle, déjà présent sur ce type de plateforme, donc aucune nouvelle brique d'infrastructure), avec une clé de chiffrement elle-même protégée par RACF, et déchiffré en mémoire seulement au moment de l'appel.
+
+```sql
+-- Une seule ligne : le jeton API GitLab est un paramètre du service, pas un
+-- état métier par branche (même esprit que SYNC_WEBHOOK_SECRET).
+CREATE TABLE SYNC_GITLAB_API_TOKEN (
+    TOKEN_ENCRYPTED  VARCHAR(512) NOT NULL,  -- jeton chiffré via ICSF, jamais en clair en base
+    EXPIRES_AT       TIMESTAMP NOT NULL,      -- échéance déclarée côté GitLab à la création du jeton
+    ROTATED_AT       TIMESTAMP NOT NULL
+);
+```
+
+!!! warning "L'expiration est obligatoire, indépendamment de ce que GitLab impose par défaut"
+    L'instance GitLab de la plateforme n'impose pas nécessairement une expiration par défaut sur ce type de jeton (un jeton personnel classique peut très bien ne jamais expirer). Ce n'est pas une raison suffisante pour un jeton qui vit dans une base de données, jamais entre les mains d'un humain, sur un SI bancaire critique : l'expiration est fixée explicitement à chaque création de jeton, comme **décision organisationnelle**, pas comme contrainte technique subie. Cadence retenue : **90 jours**.
+
+Le vrai risque n'est pas l'expiration elle-même, mais une expiration **non anticipée** : sans surveillance, un jeton qui expire un jour donné transforme un simple renouvellement de routine en panne de production. Le job TWS/OPC qui sonde déjà `SYNC_SERVICE_HEARTBEAT` toutes les 5 minutes (voir [Heartbeat DB2](#heartbeat-db2-detection-quasi-temps-reel)) étend son contrôle à `EXPIRES_AT` :
+
+```sql
+SELECT CASE WHEN EXPIRES_AT < CURRENT TIMESTAMP + 15 DAYS
+            THEN 'ALERTE — jeton API GitLab arrive à expiration'
+            ELSE 'OK' END
+FROM SYNC_GITLAB_API_TOKEN;
+```
+
+Un seuil de **15 jours avant échéance** laisse une marge confortable pour une rotation manuelle, sans dépendre d'un outil de suivi centralisé des secrets/certificats — aucun n'existe à ce jour à l'échelle de l'entreprise pour ce type de jeton applicatif. Même canal d'alerte que le heartbeat (BAL de l'équipe d'administration et liste `LCL_SNI_SQUAD_SAM`) : pas de nouveau canal à créer.
+
+!!! info "Distinguer un jeton expiré d'une panne GitLab"
+    Un jeton expiré ou révoqué fait échouer l'appel API du job de réconciliation avec un code d'erreur d'authentification (401/403) — un signal précis, différent d'un timeout ou d'une erreur réseau qui indiquerait une véritable panne GitLab (voir [Catalogue des pannes et conséquences](pannes-et-consequences.md)). Le job de réconciliation distingue explicitement ces deux cas dans son propre message d'alerte, pour éviter qu'un opérateur ne perde du temps à diagnostiquer une panne GitLab qui n'est en réalité qu'un jeton à renouveler.
+
+**Rotation** : manuelle, tous les 90 jours ou dès l'alerte à J-15 — un opérateur habilité crée le nouveau jeton dans GitLab (scope et échéance explicites), chiffre et insère la nouvelle valeur via le canal DRS existant, révoque l'ancien jeton une fois le basculement confirmé. Automatiser resterait disproportionné pour un jeton en lecture seule : il faudrait un jeton encore plus privilégié pour piloter la rotation par API GitLab, ce qui ne ferait que déplacer le problème vers un secret plus sensible à protéger.
+
 ## Vérification côté consommateur — verrou de synchro
 
 Le heartbeat et la réconciliation répondent tous deux à *« le service de sync est-il en panne ? »*, à l'échelle du service ou d'une branche — mais aucun des deux ne protège un **consommateur** (pipeline de build, outil de packaging) contre une lecture en plein vol : le `reset --hard` du [cycle de vie d'une branche](service-synchronisation.md#cycle-de-vie-dune-branche) met à jour le workspace fichier par fichier, pas en une seule opération atomique. Un consommateur qui lit le workspace pendant que la synchro est en cours peut donc voir un mélange de fichiers anciens et nouveaux, sans qu'aucune erreur ne se produise.
@@ -135,7 +172,17 @@ Un `STATUS = 'PENDING'` qui ne repasse pas à `READY` au-delà d'un seuil (le m�
 !!! note "Le consommateur peut vérifier la fraîcheur en plus du statut — en complément, pas à la place de la supervision"
     Un consommateur pourrait être tenté d'interroger lui-même `SYNC_SERVICE_HEARTBEAT` (voir [Heartbeat DB2](#heartbeat-db2-detection-quasi-temps-reel)) avant de lire, plutôt que de s'en remettre à la supervision centrale. Cela reste une bonne pratique **en complément** — une seconde ligne de défense qui protège le consommateur même si une alerte d'exploitation a été manquée ou tarde à être traitée. Mais cela ne peut pas **remplacer** le heartbeat centralisé : la détection ne se déclencherait alors que lorsqu'un consommateur cherche effectivement à lire — si aucun pipeline ne tourne sur une application donnée pendant un week-end, personne ne vérifie rien, et un service mort passerait inaperçu jusqu'au retour d'activité. C'est exactement la même faille que celle du heartbeat basé sur `SYNC_STATUS` (voir plus haut), seulement déplacée de "l'activité des développeurs" vers "l'activité des consommateurs". Le heartbeat centralisé reste donc indispensable pour l'alerte proactive de l'exploitation ; la vérification côté consommateur n'est qu'une garantie supplémentaire au moment de la lecture.
 
-L'authentification du consommateur auprès de DRS pour cette lecture reste à définir, voir [Points non couverts](../../points-ouverts.md#acces-consommateur-au-statut-de-synchro-drs).
+### Authentification du consommateur auprès de DRS
+
+Deux cas distincts, selon que le consommateur tourne ou non dans le périmètre z/OS natif :
+
+**Job batch z/OS natif** : il n'a pas besoin de DRS du tout. DRS n'a de valeur que pour un appelant qui, comme zCX, ne peut pas parler nativement à DB2 (voir [Où stocker ce secret côté zCX](service-synchronisation.md#ou-stocker-ce-secret-cote-zcx) pour ce constat côté zCX) — un job batch natif, lui, est déjà dans le périmètre RACF/DB2 de confiance et peut se connecter en SQL natif, avec sa propre identité RACF et un GRANT DB2 classique. Ajouter un saut REST via DRS n'apporterait rien ici, seulement une latence et un composant de plus à opérer.
+
+**Poste de développeur (ou tout appelant hors z/OS)** : à l'inverse, ce cas est en tout point identique à celui de zCX → DRS — un appelant externe au périmètre z/OS natif, qui doit donc emprunter le même canal DRS et le même mécanisme d'authentification par PassTicket RACF (voir [Heartbeat DB2](#heartbeat-db2-detection-quasi-temps-reel)), sans inventer de canal distinct pour ce seul cas.
+
+**Décision retenue : ce projet expose un mécanisme en lecture seule — le canal DRS, avec un GRANT strictement `SELECT` sur `SYNC_STATUS` — distinct de celui du service de sync, sans être responsable de la gestion des habilitations de chaque consommateur.** Cohérent avec le principe de séparation des privilèges déjà retenu pour `SYNC_GITLAB_API_TOKEN` (voir [Sécurisation de l'appel sortant vers l'API GitLab](#securisation-de-lappel-sortant-vers-lapi-gitlab)) : le compte du service de sync a besoin d'écrire `SYNC_STATUS` (`PENDING`/`READY`), ce qu'aucun accès exposé à un consommateur ne doit jamais permettre — une fuite ou un mésusage côté pipeline de build ne doit pas pouvoir corrompre le verrou de synchro dont dépendent tous les autres consommateurs.
+
+Qui obtient ce GRANT, sous quel compte, et comment ce compte est provisionné et renouvelé relève de chaque équipe consommatrice et de sa propre gouvernance d'accès — pas de ce projet (voir [Périmètre du projet et responsabilités](../index.md#acces-en-lecture-des-consommateurs)). Ce que ce projet garantit, c'est seulement la nature du canal exposé — strictement `SELECT` sur `SYNC_STATUS`, quel que soit le compte qui l'emprunte — pas la liste des comptes autorisés à s'en servir. L'imputabilité individuelle, centrale pour une action qui *modifie* quelque chose (voir [Identité de l'exécutant](../../perspectives.md#recompilation-de-masse-du-patrimoine)), n'a de toute façon pas la même portée ici : consulter un statut avant lecture ne modifie rien et n'engage aucune responsabilité individuelle à tracer.
 
 ---
 
