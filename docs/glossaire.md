@@ -199,10 +199,10 @@ L'exercice périodique de bascule d'un site vers l'autre, mené dans les deux se
 Une vérification périodique qui compare l'état réellement enregistré (par exemple sur USS) avec une source de référence (GitLab), pour détecter et corriger automatiquement les écarts.
 
 **RPO**{: #rpo }
-*Recovery Point Objective* — la perte de données maximale tolérée lors d'une reprise après incident, exprimée en temps (ex. « 5 minutes de RPO » signifie qu'au plus 5 minutes de données peuvent être perdues). Se distingue du RTO, qui porte sur le délai de reprise plutôt que sur la perte de données.
+*Recovery Point Objective* — la perte de données maximale tolérée lors d'une reprise après incident, exprimée en temps (ex. « 5 minutes de RPO » signifie qu'au plus 5 minutes de données peuvent être perdues) — au sens de la norme [ISO 22301:2019](https://www.iso.org/standard/75106.html) (*Business continuity management systems*), qui définit le RPO comme le point dans le temps jusqu'auquel les données doivent être restaurées après un incident pour permettre la reprise de l'activité. Se distingue du RTO, qui porte sur le délai de reprise plutôt que sur la perte de données. Le règlement [DORA](#dora) (article 12 §6) impose la détermination d'un RPO pour chaque fonction critique ou importante, sans en redéfinir le terme au-delà de cette pratique de continuité d'activité déjà standardisée par l'ISO.
 
 **RTO**{: #rto }
-*Recovery Time Objective* — le délai maximal toléré pour rétablir un service après un incident. Contrairement aux délais de détection d'une panne, le RTO porte sur le temps total jusqu'au retour à un fonctionnement normal, détection et remédiation comprises.
+*Recovery Time Objective* — le délai maximal toléré pour rétablir un service après un incident — au sens de la norme [ISO 22301:2019](https://www.iso.org/standard/75106.html), qui définit le RTO comme la période suivant un incident au terme de laquelle un produit, un service ou une activité doit avoir repris. Contrairement aux délais de détection d'une panne, le RTO porte sur le temps total jusqu'au retour à un fonctionnement normal, détection et remédiation comprises — c'est un engagement de résolution, pas seulement d'alerte. Le règlement [DORA](#dora) (article 12 §6) impose la détermination d'un RTO pour chaque fonction critique ou importante.
 
 **Runbook**{: #runbook }
 Un anglicisme désignant une procédure documentée, pas à pas, indiquant quoi faire en cas d'incident précis — l'équivalent d'un guide de dépannage destiné à l'équipe d'exploitation plutôt qu'aux développeurs.

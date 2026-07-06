@@ -24,7 +24,7 @@ La vraie question de disponibilité à trancher n'est donc pas « le service de 
 
 Une analyse technique récente de l'architecture de résilience, menée au regard du SLA cadré ci-dessus, a mis en évidence plusieurs zones d'ombre sur la fiabilité du mode dégradé lui-même — c'est-à-dire sur sa capacité à effectivement absorber une indisponibilité de GitLab sans délai ni échec :
 
-- Aucun RTO ni RPO n'est formellement engagé pour le service de synchronisation ni pour la procédure de resynchronisation — les seuls chiffres documentés (heartbeat, fenêtre de grâce GitLab, cadence de réconciliation) sont des délais de détection, jamais des engagements de résolution.
+- Aucun [RTO](glossaire.md#rto) ni [RPO](glossaire.md#rpo) n'est formellement engagé pour le service de synchronisation ni pour la procédure de resynchronisation — les seuls chiffres documentés (heartbeat, fenêtre de grâce GitLab, cadence de réconciliation) sont des délais de détection, jamais des engagements de résolution. Le gabarit à compléter une fois ces valeurs déterminées est fourni ci-dessous.
 - Aucune auto-remédiation n'est prévue : rien n'indique que le container zCX redémarre automatiquement en cas de panne, ce qui fait reposer toute reprise sur une intervention humaine.
 - Cette intervention humaine repose sur un opérateur sans astreinte, MTTA/MTTR ni couverture horaire documentés ; le canal d'alerte actuel (BAL email) est potentiellement inadapté à un besoin de réaction urgente.
 - La bascule d'infrastructure (LPAR, stockage, réseau) est déjà couverte par des exercices [PSI](glossaire.md#psi-plan-de-secours-informatique) (*Plan de Secours Informatique*) réguliers, menés dans les deux sens entre les deux datacenters — le futur service de sync en bénéficiera nativement, puisqu'il sera hébergé sur une LPAR sécurisée elle-même ciblée par ces exercices.
@@ -32,6 +32,16 @@ Une analyse technique récente de l'architecture de résilience, menée au regar
 - La capacité de montée en charge du service de sync n'est pas modélisée : aucun débit maximal, aucune stratégie d'absorption de pic (ex. déclenché par une recompilation de masse générant de nombreux événements en rafale) n'est documentée.
 - Aucun monitoring applicatif réel n'existe au-delà de l'alerte binaire du heartbeat : pas de tableau de bord, pas de suivi de budget d'erreur, pas de télémétrie sur l'âge du dernier événement traité par branche.
 - La cadence de réconciliation (« potentiellement journalière ») reste à réévaluer : c'est le seul filet de rattrapage pour un bug applicatif ciblé ou une dérive de configuration GitLab, avec un délai de correction potentiel de plusieurs heures.
+
+Ni le RTO ni le RPO ne peuvent être fixés par une estimation technique unilatérale : ce sont des arbitrages qui engagent l'organisation (comité de pilotage, fonction risques/conformité), au regard de la criticité réelle de la fonction concernée — pas une valeur que l'équipe technique peut choisir seule. Une fois ces valeurs formellement déterminées, elles doivent être consignées ci-dessous avec la date et l'instance qui les a validées, avant de migrer vers une page définitive ([Gestion des incidents et reprise](architecture/gestion-incidents.md) pour l'engagement opérationnel, ou [Périmètre du projet et responsabilités](architecture/index.md#perimetre-du-projet-et-responsabilites) pour son rattachement au périmètre applicatif du service de sync) — conformément à la règle de vie de cette page : une question résolue migre et est retirée d'ici.
+
+```
+RTO à déterminer : _______ (non défini à ce jour)
+RPO à déterminer : _______ (non défini à ce jour)
+Périmètre : service de synchronisation USS uniquement (voir Périmètre du projet et responsabilités)
+Validé par : _______
+Date : _______
+```
 
 ### Conformité réglementaire à formaliser
 
