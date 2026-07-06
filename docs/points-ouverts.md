@@ -43,6 +43,8 @@ Validé par : _______
 Date : _______
 ```
 
+La [vérification d'écart avant bascule en mode dégradé](architecture/gestion-incidents.md#verification-prealable-a-la-bascule-en-mode-degrade-ecart-de-synchro-et-sante-du-mecanisme), désormais prévue dans le runbook, fournira une mesure exploitable pour cet arbitrage le moment venu — elle ne le remplace pas, et ne dispense pas de le formaliser.
+
 ### Conformité réglementaire à formaliser
 
 Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conformite-reglementaire.md)) a identifié quatre points à traiter formellement, indépendamment des questions déjà listées ci-dessus :
