@@ -1,7 +1,7 @@
 # Le service de synchronisation
 
 !!! info "Prérequis"
-    Cette page suppose une connaissance de [La contrainte de départ et les workspaces USS](index.md).
+    Cette page suppose une connaissance de [La contrainte de départ et les workspaces USS](index.md). Les commandes Git utilisées ici (`fetch`, `reset --hard`, `worktree`...) sont expliquées en détail, à partir de zéro, dans [Commandes Git utilisées dans ce projet](../../commandes-git.md) si elles ne vous sont pas familières.
 
 La synchronisation est **découplée du pipeline de build**. Un pipeline peut être annulé, échouer ou être manuellement ignoré — la sync USS doit se produire quoi qu'il arrive.
 
@@ -10,7 +10,7 @@ Le service de sync est un composant dédié qui tourne dans un container **zCX**
 !!! info "Le webhook se déclenche quel que soit le canal utilisé par le développeur"
     Le webhook est émis **côté serveur GitLab**, sur l'événement de dépôt lui-même (un nouveau commit existe, une branche est créée ou supprimée) — pas sur le client qui a produit cet événement. Le résultat est donc identique que le développeur :
 
-    - pousse en CLI via `git push` depuis son poste ou un accès distant (VPN, bastion) ;
+    - pousse en CLI via [`git push`](../../commandes-git.md#les-commandes-de-base-deja-connues) depuis son poste ou un accès distant (VPN, bastion) ;
     - commite directement depuis l'interface web de GitLab (Web IDE, édition de fichier en ligne) ;
     - crée ou supprime une branche depuis l'interface graphique GitLab ;
     - déclenche l'action via l'API REST GitLab.
@@ -122,17 +122,17 @@ Une fois cette conversion appliquée, le service de sync réagit à trois types 
 
 | Événement GitLab | Action USS |
 |---|---|
-| Création de branche `pkg/...` | `git worktree add /u/gitlab/<app>/workspaces/<branche-converti> <branche>` |
+| Création de branche `pkg/...` | [`git worktree add /u/gitlab/<app>/workspaces/<branche-converti> <branche>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) |
 | Push (commit) sur la branche | `git -C /u/gitlab/<app>/workspaces/<branche-converti> fetch && git -C /u/gitlab/<app>/workspaces/<branche-converti> reset --hard origin/<branche>` |
-| Suppression de branche (après merge) | `git worktree remove /u/gitlab/<app>/workspaces/<branche-converti>` |
+| Suppression de branche (après merge) | [`git worktree remove /u/gitlab/<app>/workspaces/<branche-converti>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) |
 
 !!! info "Pour qui découvre Git : que font `fetch` et `reset --hard` ?"
     Deux commandes distinctes, deux rôles différents :
 
-    - **`git fetch`** télécharge depuis GitLab (appelé `origin`) les nouveaux commits qui n'existent pas encore localement — mais **ne touche à aucun fichier** du workspace. C'est une mise à jour de la connaissance de l'historique, invisible tant qu'on ne l'exploite pas explicitement : après un `fetch`, les fichiers sur disque sont encore exactement comme avant.
-    - **`git reset --hard <commit>`** force ensuite les fichiers du workspace à correspondre **exactement** à ce commit précis, en écrasant sans avertissement tout ce qui s'y trouvait avant. C'est une opération destructive par nature — n'importe quelle modification locale non commitée serait perdue.
+    - [**`git fetch`**](../../commandes-git.md#les-commandes-de-base-deja-connues) télécharge depuis GitLab (appelé `origin`) les nouveaux commits qui n'existent pas encore localement — mais **ne touche à aucun fichier** du workspace. C'est une mise à jour de la connaissance de l'historique, invisible tant qu'on ne l'exploite pas explicitement : après un `fetch`, les fichiers sur disque sont encore exactement comme avant.
+    - [**`git reset --hard <commit>`**](../../commandes-git.md#reset-hard-une-commande-destructive-volontairement) force ensuite les fichiers du workspace à correspondre **exactement** à ce commit précis, en écrasant sans avertissement tout ce qui s'y trouvait avant. C'est une opération destructive par nature — n'importe quelle modification locale non commitée serait perdue.
 
-    Cet enchaînement `fetch` puis `reset --hard` (plutôt qu'un `git pull`, qui aurait fusionné les changements au lieu de les imposer) est **volontairement écrasant** ici, et c'est précisément ce qui convient : USS est un miroir en lecture seule (voir [La contrainte de départ](index.md#la-contrainte-de-depart)), il n'y a donc jamais de "travail en cours" sur ces fichiers qu'on risquerait de perdre — contrairement à un poste de développeur, où ces mêmes commandes seraient dangereuses à utiliser sans précaution.
+    Cet enchaînement `fetch` puis `reset --hard` (plutôt qu'un [`git pull`](../../commandes-git.md#les-commandes-de-base-deja-connues), qui aurait fusionné les changements au lieu de les imposer) est **volontairement écrasant** ici, et c'est précisément ce qui convient : USS est un miroir en lecture seule (voir [La contrainte de départ](index.md#la-contrainte-de-depart)), il n'y a donc jamais de "travail en cours" sur ces fichiers qu'on risquerait de perdre — contrairement à un poste de développeur, où ces mêmes commandes seraient dangereuses à utiliser sans précaution.
 
 Le tableau ci-dessus montre *quelle* action correspond à *quel* événement, mais pas *dans quel ordre* les étapes s'enchaînent pour un même événement — en particulier l'ordre entre l'écriture du statut en DB2 et l'opération git sur USS, déjà signalé comme critique dans [Vérification côté consommateur](detection-defauts.md#verification-cote-consommateur-verrou-de-synchro). Le diagramme de séquence suivant détaille ce déroulé pour un `PUSH` :
 
@@ -198,7 +198,7 @@ Chaque opération est **horodatée et journalisée** avec le hash de commit corr
 
 ## Rétention et purge des objets git
 
-`git worktree remove` (voir [tableau ci-dessus](#cycle-de-vie-dune-branche)) supprime le **répertoire de travail** de la branche — pas les objets git eux-mêmes (commits, arbres, blobs), qui restent dans `repo/`, le dépôt partagé entre tous les workspaces d'une même application (voir [Les workspaces USS](index.md#les-workspaces-uss-une-branche-un-repertoire)). Ces objets ne redeviennent candidats à la suppression que lors d'un `git gc`/repack — et seulement s'ils ne sont plus **atteignables** depuis aucune référence (branche ou tag). C'est ce mécanisme, pas une politique à inventer, qui tranche la question du dépôt qui reste actif après suppression d'une branche : faut-il interdire tout `gc`/repack agressif sur un tel dépôt ?
+`git worktree remove` (voir [tableau ci-dessus](#cycle-de-vie-dune-branche)) supprime le **répertoire de travail** de la branche — pas les objets git eux-mêmes (commits, arbres, blobs), qui restent dans `repo/`, le dépôt partagé entre tous les workspaces d'une même application (voir [Les workspaces USS](index.md#les-workspaces-uss-une-branche-un-repertoire)). Ces objets ne redeviennent candidats à la suppression que lors d'un [`git gc`](../../commandes-git.md#linterieur-de-git-object-store-purge-integrite)/repack — et seulement s'ils ne sont plus **atteignables** depuis aucune référence (branche ou tag). C'est ce mécanisme, pas une politique à inventer, qui tranche la question du dépôt qui reste actif après suppression d'une branche : faut-il interdire tout `gc`/repack agressif sur un tel dépôt ?
 
 **Décision retenue : non, `git gc`/repack n'ont pas besoin d'être interdits — à condition qu'un tag protège chaque commit qui doit être retenu.**
 

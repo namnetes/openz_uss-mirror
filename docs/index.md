@@ -33,6 +33,11 @@ externes deviennent inaccessibles.
 
 <div class="grid cards" markdown>
 
+-   :material-git: **[Commandes Git utilisées dans ce projet](commandes-git.md)**
+
+    Point de départ pour qui découvre Git : chaque commande utilisée ailleurs
+    dans ce corpus, expliquée dans l'ordre à partir de zéro.
+
 -   :material-sitemap: **[Architecture](architecture/index.md)**
 
     Les composants techniques prévus pour la résilience de la chaîne

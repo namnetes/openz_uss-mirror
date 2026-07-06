@@ -38,7 +38,7 @@ Les équipes qui consomment le miroir USS (pipelines de build, outils de packagi
 Ce qu'il **doit** fournir en contrepartie, ce sont des services permettant à ces consommateurs de vérifier, avant de lire un workspace, que le miroir est :
 
 - **synchro** (à jour par rapport à GitLab) — couvert par le statut `PENDING`/`READY` de `SYNC_STATUS`, voir [Vérification côté consommateur](resilience/detection-defauts.md#verification-cote-consommateur-verrou-de-synchro) ;
-- **propre** (contenu intègre) — couvert par une vérification locale `git status --porcelain`, sans nouvelle brique d'infrastructure, voir [Vérification de la propreté](resilience/detection-defauts.md#verification-de-la-proprete-integrite-du-contenu).
+- **propre** (contenu intègre) — couvert par une vérification locale [`git status --porcelain`](../commandes-git.md#les-commandes-de-base-deja-connues), sans nouvelle brique d'infrastructure, voir [Vérification de la propreté](resilience/detection-defauts.md#verification-de-la-proprete-integrite-du-contenu).
 
 ### Ce qui reste de la responsabilité de ce projet {: #ce-qui-reste-de-la-responsabilite-de-ce-projet }
 

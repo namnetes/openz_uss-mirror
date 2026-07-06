@@ -4,7 +4,7 @@
     Cette page décrit le runbook prévu pour le service de synchronisation USS (*Unix System Services*), qui n'est pas encore implémenté.
 
 !!! info "Prérequis"
-    Cette page suppose une connaissance du mécanisme de synchronisation décrit dans [Résilience et synchronisation USS](resilience/index.md) : webhooks GitLab, heartbeat DB2, cycle de vie d'une branche et réconciliation périodique.
+    Cette page suppose une connaissance du mécanisme de synchronisation décrit dans [Résilience et synchronisation USS](resilience/index.md) : webhooks GitLab, heartbeat DB2, cycle de vie d'une branche et réconciliation périodique. Les commandes Git utilisées ici (`rev-parse HEAD`, `worktree`, `reset --hard`...) sont expliquées en détail, à partir de zéro, dans [Commandes Git utilisées dans ce projet](../commandes-git.md) si elles ne vous sont pas familières.
 
 ## Incident sur zCX — que se passe-t-il pendant la panne ?
 
@@ -44,7 +44,7 @@ Comme sous ChangeMan, où chacune de ces actions dégradées était tracée dans
 
 **Décision retenue : le mode dégradé interdit toute modification de code tant que GitLab n'est pas revenu — on ne fait que rejouer le dernier état déjà synchronisé (build, promotion, déploiement).**
 
-Cette interdiction n'est pas une contrainte ajoutée pour ce cas précis : c'est une conséquence directe de la règle déjà posée plus haut sur cette page — USS reste strictement en lecture, y compris en mode dégradé, et seul le service de sync est autorisé à y écrire. Éditer un source directement sur USS pendant la panne violerait cette règle, et romprait la garantie d'identité avec GitLab que ce miroir a précisément pour vocation de certifier (voir [La contrainte de départ](resilience/index.md#la-contrainte-de-depart)) : au retour de GitLab, le prochain `fetch`/`reset --hard` du service de sync écraserait silencieusement ce correctif sans laisser de trace, puisque GitLab — la source de vérité — n'en aurait jamais eu connaissance.
+Cette interdiction n'est pas une contrainte ajoutée pour ce cas précis : c'est une conséquence directe de la règle déjà posée plus haut sur cette page — USS reste strictement en lecture, y compris en mode dégradé, et seul le service de sync est autorisé à y écrire. Éditer un source directement sur USS pendant la panne violerait cette règle, et romprait la garantie d'identité avec GitLab que ce miroir a précisément pour vocation de certifier (voir [La contrainte de départ](resilience/index.md#la-contrainte-de-depart)) : au retour de GitLab, le prochain [`fetch`](../commandes-git.md#les-commandes-de-base-deja-connues)/[`reset --hard`](../commandes-git.md#reset-hard-une-commande-destructive-volontairement) du service de sync écraserait silencieusement ce correctif sans laisser de trace, puisque GitLab — la source de vérité — n'en aurait jamais eu connaissance.
 
 !!! warning "Un vrai besoin de correctif vital reste possible — mais hors de ce mécanisme"
     Rien n'empêche qu'un correctif de production soit réellement nécessaire pendant que GitLab est inaccessible. Ce cas n'appelle toutefois pas une procédure « hors Git » propre à ce projet : c'est le processus d'urgence générique de gestion des changements de l'établissement (déjà existant, indépendant de GitLab et du service de sync) qui prend le relais, exactement comme il le ferait pour toute autre panne d'infrastructure empêchant un déploiement normal. Un tel correctif s'appliquerait alors directement sur le *load module* en production — jamais sur USS — via cette procédure d'urgence existante.
@@ -72,7 +72,7 @@ GET /api/v4/projects/DA12/repository/branches/pkg%2FPKG-20260616-0042
 # → { "commit": { "id": "a3f7c1d2..." } }
 ```
 
-Si les deux hashes sont identiques, le workspace est ISO. S'ils diffèrent, le workspace est en retard d'un ou plusieurs commits — auquel cas le job vérifie aussi `git -C <workspace> rev-parse HEAD` directement sur USS, pour distinguer un simple retard d'une divergence entre DB2 et l'état réel du workspace.
+Si les deux hashes sont identiques, le workspace est ISO. S'ils diffèrent, le workspace est en retard d'un ou plusieurs commits — auquel cas le job vérifie aussi [`git -C <workspace> rev-parse HEAD`](../commandes-git.md#le-commit-comme-objet-et-head-comme-pointeur) directement sur USS, pour distinguer un simple retard d'une divergence entre DB2 et l'état réel du workspace.
 
 Le job de réconciliation exécute cette comparaison, application par application, pour toutes les branches actives et produit un rapport structuré :
 
@@ -99,10 +99,10 @@ La procédure couvre quatre cas :
 
 | Situation détectée | Action |
 |---|---|
-| Branche GitLab présente, workspace USS absent | `git worktree add` — crée le workspace |
+| Branche GitLab présente, workspace USS absent | [`git worktree add`](../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) — crée le workspace |
 | Workspace USS en retard sur GitLab | `git -C <workspace> fetch && git -C <workspace> reset --hard origin/<branche>` — réaligne sur GitLab |
 | Workspace USS au niveau de GitLab | Aucune action — log `OK` |
-| Workspace USS présent, branche GitLab supprimée | `git worktree remove` — supprime l'orphelin |
+| Workspace USS présent, branche GitLab supprimée | [`git worktree remove`](../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) — supprime l'orphelin |
 
 ```bash
 # Squelette de la procédure de resynchronisation complète
@@ -167,4 +167,4 @@ Chaque appel à `log` ci-dessus écrit en réalité une entrée dans le [journal
 
     **Resynchronisation effective**
 
-    Hors incident, le nombre de branches en écart est faible. Un `git pull` sur un workspace en retard de 1 à 2 commits prend moins d'une seconde. La resynchronisation complète après un incident long (plusieurs heures) reste sous la minute pour 600 branches, création de worktrees incluse.
+    Hors incident, le nombre de branches en écart est faible. Un [`git pull`](../commandes-git.md#les-commandes-de-base-deja-connues) sur un workspace en retard de 1 à 2 commits prend moins d'une seconde. La resynchronisation complète après un incident long (plusieurs heures) reste sous la minute pour 600 branches, création de worktrees incluse.

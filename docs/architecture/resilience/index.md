@@ -22,7 +22,7 @@ Le patrimoine applicatif compte environ **600 dépôts**, un par application du 
 
 Pour un dépôt donné, USS ne maintient pas une seule copie de `main`. Chaque branche active dispose de son propre répertoire de travail, créé dès la création de la branche dans GitLab.
 
-La solution technique retenue est **`git worktree`** : plusieurs branches coexistent simultanément sur USS depuis un seul dépôt git, en partageant les objets git communs. Seuls les fichiers propres à chaque branche occupent de l'espace supplémentaire.
+La solution technique retenue est [**`git worktree`**](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) : plusieurs branches coexistent simultanément sur USS depuis un seul dépôt git, en partageant les objets git communs. Seuls les fichiers propres à chaque branche occupent de l'espace supplémentaire.
 
 ```
 /u/gitlab/

@@ -62,6 +62,9 @@ Une configuration DB2 for z/OS où plusieurs instances du gestionnaire de base d
 **DB2 for z/OS**{: #db2-for-z-os }
 La base de données utilisée par la plateforme Mainframe pour stocker de façon fiable des informations de suivi (par exemple : quel commit est actuellement synchronisé sur quelle branche).
 
+**Dépôt (Git)**{: #depot-git }
+Le dossier dont Git suit l'historique complet — chaque modification, une fois commitée, y est enregistrée de façon permanente, avec qui l'a faite et quand. Dans ce projet, chaque application (code CAPIREF) possède son propre dépôt, partagé par tous ses workspaces (voir *Worktree*) — voir [Commandes Git utilisées dans ce projet](commandes-git.md#les-quatre-notions-de-base-avant-la-premiere-commande) pour une introduction complète.
+
 **DRS (Db2 REST Services)**{: #drs-db2-rest-services }
 Le composant qui permet à un programme d'interroger ou de mettre à jour DB2 via de simples appels API REST, sans avoir à parler le langage natif de la base de données.
 
@@ -197,6 +200,9 @@ L'exercice périodique de bascule d'un site vers l'autre, mené dans les deux se
 
 **Réconciliation**{: #reconciliation }
 Une vérification périodique qui compare l'état réellement enregistré (par exemple sur USS) avec une source de référence (GitLab), pour détecter et corriger automatiquement les écarts.
+
+**Remote**{: #remote }
+Un dépôt Git distant auquel un dépôt local est relié, pour y envoyer (`push`) ou en récupérer (`fetch`/`pull`) des commits. `origin` est le nom conventionnel donné par défaut au remote principal d'un dépôt — dans ce projet, GitLab joue ce rôle pour chacun des ~600 dépôts applicatifs. Voir [Commandes Git utilisées dans ce projet](commandes-git.md#les-quatre-notions-de-base-avant-la-premiere-commande) pour une introduction complète.
 
 **RPO**{: #rpo }
 *Recovery Point Objective* — la perte de données maximale tolérée lors d'une reprise après incident, exprimée en temps (ex. « 5 minutes de RPO » signifie qu'au plus 5 minutes de données peuvent être perdues) — au sens de la norme [ISO 22301:2019](https://www.iso.org/standard/75106.html) (*Business continuity management systems*), qui définit le RPO comme le point dans le temps jusqu'auquel les données doivent être restaurées après un incident pour permettre la reprise de l'activité. Se distingue du RTO, qui porte sur le délai de reprise plutôt que sur la perte de données. Le règlement [DORA](#dora) (article 12 §6) impose la détermination d'un RPO pour chaque fonction critique ou importante, sans en redéfinir le terme au-delà de cette pratique de continuité d'activité déjà standardisée par l'ISO.

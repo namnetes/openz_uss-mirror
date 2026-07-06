@@ -1,7 +1,7 @@
 # Détection et gestion des défauts de synchro
 
 !!! info "Prérequis"
-    Cette page suppose une connaissance du mécanisme décrit dans [Le service de synchronisation](service-synchronisation.md) : webhooks GitLab, cycle de vie d'une branche.
+    Cette page suppose une connaissance du mécanisme décrit dans [Le service de synchronisation](service-synchronisation.md) : webhooks GitLab, cycle de vie d'une branche. Les commandes Git utilisées ici (`status --porcelain`, `fsck`, `rev-parse`...) sont expliquées en détail, à partir de zéro, dans [Commandes Git utilisées dans ce projet](../../commandes-git.md) si elles ne vous sont pas familières.
 
 Un défaut de synchro peut se produire à trois échelles différentes, et aucun des trois mécanismes ci-dessous ne peut, seul, répondre aux trois questions à la fois :
 
@@ -148,12 +148,12 @@ Un seuil de **15 jours avant échéance** laisse une marge confortable pour une 
 
 ## Vérification côté consommateur — verrou de synchro
 
-Le heartbeat et la réconciliation répondent tous deux à *« le service de sync est-il en panne ? »*, à l'échelle du service ou d'une branche — mais aucun des deux ne protège un **consommateur** (pipeline de build, outil de packaging) contre une lecture en plein vol : le `reset --hard` du [cycle de vie d'une branche](service-synchronisation.md#cycle-de-vie-dune-branche) met à jour le workspace fichier par fichier, pas en une seule opération atomique. Un consommateur qui lit le workspace pendant que la synchro est en cours peut donc voir un mélange de fichiers anciens et nouveaux, sans qu'aucune erreur ne se produise.
+Le heartbeat et la réconciliation répondent tous deux à *« le service de sync est-il en panne ? »*, à l'échelle du service ou d'une branche — mais aucun des deux ne protège un **consommateur** (pipeline de build, outil de packaging) contre une lecture en plein vol : le [`reset --hard`](../../commandes-git.md#reset-hard-une-commande-destructive-volontairement) du [cycle de vie d'une branche](service-synchronisation.md#cycle-de-vie-dune-branche) met à jour le workspace fichier par fichier, pas en une seule opération atomique. Un consommateur qui lit le workspace pendant que la synchro est en cours peut donc voir un mélange de fichiers anciens et nouveaux, sans qu'aucune erreur ne se produise.
 
 `SYNC_STATUS` porte donc, en plus de l'horodatage, un **statut** qui encadre chaque opération :
 
 - dès réception du webhook, la ligne passe à `STATUS = 'PENDING'` et `TARGET_COMMIT_HASH` est renseigné avec le commit visé ;
-- une fois `git worktree add`/`fetch`/`reset --hard` terminé avec succès, la ligne passe à `STATUS = 'READY'` et `COMMIT_HASH` est aligné sur `TARGET_COMMIT_HASH`.
+- une fois [`git worktree add`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot)/[`fetch`](../../commandes-git.md#les-commandes-de-base-deja-connues)/`reset --hard` terminé avec succès, la ligne passe à `STATUS = 'READY'` et `COMMIT_HASH` est aligné sur `TARGET_COMMIT_HASH`.
 
 Avant de lire un workspace, un consommateur interroge cette même table via DRS :
 
@@ -188,9 +188,9 @@ Qui obtient ce GRANT, sous quel compte, et comment ce compte est provisionné et
 
 `SYNC_STATUS` répond à *« ce workspace est-il synchro ? »* (fraîcheur) — pas à *« ce workspace est-il propre ? »* (intégrité du contenu), voir [Périmètre du projet et responsabilités](../index.md#acces-en-lecture-des-consommateurs). La [réconciliation périodique](#reconciliation-periodique) s'en approche, mais ne compare que le hash de `HEAD` — une référence, pas le contenu réel des fichiers — et seulement à sa propre cadence, jamais à l'appel d'un consommateur précis juste avant une lecture. Une corruption survenue *après* un `STATUS = READY` déjà posé (corruption zFS, écriture inattendue) ne serait donc détectée qu'au prochain cycle de réconciliation.
 
-**Décision retenue : aucune nouvelle brique d'infrastructure — le consommateur vérifie lui-même la propreté, localement, avec `git status --porcelain`.**
+**Décision retenue : aucune nouvelle brique d'infrastructure — le consommateur vérifie lui-même la propreté, localement, avec [`git status --porcelain`](../../commandes-git.md#les-commandes-de-base-deja-connues).**
 
-Le raisonnement tient à une seule observation : USS est strictement en lecture en dehors d'une opération de synchro (voir [La contrainte de départ](../resilience/index.md#la-contrainte-de-depart)) — rien ni personne n'est censé modifier un fichier d'un workspace entre deux `reset --hard` du service de sync. Toute divergence entre les fichiers réellement présents sur disque et ce que git a enregistré au dernier `reset --hard` — qu'elle vienne d'une corruption zFS ou d'une écriture non autorisée, peu importe la cause — est donc par construction une anomalie à détecter. C'est exactement ce que `git status`/`git diff` savent déjà faire nativement, sans aucun nouveau composant :
+Le raisonnement tient à une seule observation : USS est strictement en lecture en dehors d'une opération de synchro (voir [La contrainte de départ](../resilience/index.md#la-contrainte-de-depart)) — rien ni personne n'est censé modifier un fichier d'un workspace entre deux `reset --hard` du service de sync. Toute divergence entre les fichiers réellement présents sur disque et ce que git a enregistré au dernier `reset --hard` — qu'elle vienne d'une corruption zFS ou d'une écriture non autorisée, peu importe la cause — est donc par construction une anomalie à détecter. C'est exactement ce que `git status`/[`git diff`](../../commandes-git.md#les-commandes-de-base-deja-connues) savent déjà faire nativement, sans aucun nouveau composant :
 
 ```bash
 git -C <workspace> status --porcelain
@@ -205,7 +205,7 @@ Une sortie non vide doit être traitée avec la même sévérité qu'un `SYNC_ST
 
     Deux alternatives, écartées pour cette raison :
 
-    - **`git fsck`** vérifie l'intégrité de la base d'objets entière (`repo/`, partagée par tous les workspaces d'une même application, voir [Les workspaces USS](../resilience/index.md#les-workspaces-uss-une-branche-un-repertoire)), pas seulement les fichiers d'une branche — bien plus coûteux, et redondant à exécuter à chaque lecture d'un consommateur qui ne s'intéresse qu'à sa propre branche.
+    - [**`git fsck`**](../../commandes-git.md#linterieur-de-git-object-store-purge-integrite) vérifie l'intégrité de la base d'objets entière (`repo/`, partagée par tous les workspaces d'une même application, voir [Les workspaces USS](../resilience/index.md#les-workspaces-uss-une-branche-un-repertoire)), pas seulement les fichiers d'une branche — bien plus coûteux, et redondant à exécuter à chaque lecture d'un consommateur qui ne s'intéresse qu'à sa propre branche.
     - **Un recalcul de hash "à la main"** (en dehors de git) relirait systématiquement chaque fichier intégralement à chaque lecture — annulant précisément l'optimisation de cache stat que `git status` offre déjà nativement.
 
 Cette même vérification peut enrichir la réconciliation périodique elle-même (ajouter un `git status --porcelain` par branche à la comparaison de hash déjà en place), pour couvrir aussi une corruption qui laisserait `HEAD` inchangé — un raffinement du mécanisme existant, pas une nouvelle brique à opérer.
