@@ -154,17 +154,19 @@ done
 Chaque appel à `log` ci-dessus écrit en réalité une entrée dans le [journal de synchronisation](resilience/service-synchronisation.md#journalisation-des-operations) — même format JSON Lines que le flux webhook normal, avec `"source": "reconciliation"` — plutôt qu'une simple ligne de texte : le pseudo-code ci-dessus simplifie l'appel pour rester lisible. Ce journal, horodaté avec le hash avant et après chaque opération, constitue la preuve d'audit de la reprise.
 
 ??? info "Durée d'une vérification et d'une resynchronisation complète (détail optionnel)"
-    **Vérification (600 branches)**
+    **Vérification (~600 applications, une passe par application)**
 
-    Le goulot d'étranglement n'est pas USS — lire 600 hashes locaux (`git rev-parse HEAD`) prend moins d'une seconde. C'est l'interrogation de GitLab qui compte, et elle dépend de l'implémentation :
+    Le nombre réel de branches actives par application (`main` plus, le cas échéant, quelques packages en cours) n'est pas chiffré dans ce corpus — l'estimation ci-dessous raisonne donc par application, pas sur un total exhaustif toutes branches confondues.
 
-    | Approche | Appels API | Temps estimé |
+    Le goulot d'étranglement n'est pas USS — lire les hashes locaux d'une application (`git rev-parse HEAD` par workspace) prend une fraction de seconde. C'est l'interrogation de GitLab qui compte, et elle dépend de l'implémentation :
+
+    | Approche (par application) | Appels API | Temps estimé pour ~600 applications |
     |---|---|---|
-    | Un appel par branche | 600 | ~60 secondes |
-    | Liste paginée (`per_page=100`) | 6 | **2 – 5 secondes** |
+    | Un appel par branche de l'application | Variable — dépend du nombre de branches actives | Non chiffré, proportionnel au nombre total de branches |
+    | Liste paginée des branches de l'application (`per_page=100`) | 1 par application (une application dépasse rarement 100 branches actives) | ~600 appels au total — **~60 secondes** à ~100 ms/appel |
 
-    L'approche paginée est la seule acceptable : 6 appels suffisent pour récupérer les 600 hashes GitLab, la comparaison en mémoire est négligeable.
+    L'approche paginée est la seule acceptable : un seul appel par application suffit à récupérer toutes ses branches et leurs hashes de commit en une fois, plutôt que d'interroger l'API une fois par branche.
 
     **Resynchronisation effective**
 
-    Hors incident, le nombre de branches en écart est faible. Un [`git pull`](../commandes-git.md#les-commandes-de-base-deja-connues) sur un workspace en retard de 1 à 2 commits prend moins d'une seconde. La resynchronisation complète après un incident long (plusieurs heures) reste sous la minute pour 600 branches, création de worktrees incluse.
+    Hors incident, le nombre de branches en écart est faible. Un [`git pull`](../commandes-git.md#les-commandes-de-base-deja-connues) sur un workspace en retard de 1 à 2 commits prend moins d'une seconde. Par application, la resynchronisation complète après un incident long (plusieurs heures) reste sous la minute, création de worktrees incluse — pour l'ensemble du patrimoine (~600 applications), l'ordre de grandeur reste du même ordre, sous réserve du nombre réel de branches actives, non chiffré ici.

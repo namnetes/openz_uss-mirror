@@ -12,7 +12,7 @@ Le tableau ci-dessous résume, pour chaque cause : comment elle se détecte, si 
 | Cause | Détection | CI/CD impactée ? | Reprise |
 |---|---|---|---|
 | [GitLab en panne](#gitlab-en-panne) | Immédiate côté GitLab lui-même — hors du périmètre du service de sync | Oui, aujourd'hui, sauf procédure dégradée manuelle | Automatique au retour de GitLab (webhooks en attente rejoués) |
-| [zCX (service de sync) en panne](#zcx-service-de-sync-en-panne) | Heartbeat DB2 (`SYNC_SERVICE_HEARTBEAT`), sous ~20 minutes | Non — synchro découplée du pipeline | Automatique si la panne dure moins de ~3h30 ; manuelle au-delà |
+| [zCX (service de sync) en panne](#zcx-service-de-sync-en-panne) | Heartbeat DB2 (`SYNC_SERVICE_HEARTBEAT`), sous ~20 minutes | Non — synchro découplée du pipeline | Automatique si la panne dure moins de ~3h36 ; manuelle au-delà |
 | [DB2 ou DRS indisponible alors que zCX fonctionne](#db2-ou-drs-indisponible-alors-que-zcx-fonctionne) | Heartbeat si l'indisponibilité dépasse ~20 minutes (même canal DRS) ; en dessous, non détectée | Non | Automatique — webhook rejoué par GitLab dès que DB2/DRS répond de nouveau |
 | [Panne côté z/OS](#panne-cote-zos) | Supervision infra existante (exploitant) | Non, sur panne d'un seul datacenter — bascule actif/passif automatique du service de sync | Automatique (bascule technique quasi instantanée) ; validation opérationnelle manuelle (~2h) avant confiance totale |
 | [Bug applicatif ciblé sur une branche](#bug-applicatif-cible-sur-une-branche) | Non détecté par le heartbeat (global) — seulement par la réconciliation, à sa cadence | Non — seule la branche concernée est en retard | Automatique à la prochaine réconciliation |
@@ -34,7 +34,7 @@ La reprise est automatique dès le retour de GitLab : les webhooks mis en attent
 
 **La CI/CD n'est pas bloquée** : [Le service de synchronisation](service-synchronisation.md) est explicitement découplé du pipeline de build. Un pipeline qui construit depuis GitLab (le mode actuel) continue de fonctionner normalement — seul USS prend du retard pendant la panne.
 
-**La reprise après une panne d'1 heure est déjà automatique**, sans procédure particulière : la fenêtre de grâce des relances GitLab est d'environ **3h30** (1 + 5 + 10 + 100 + 100 minutes, voir [Incident sur zCX](../gestion-incidents.md#incident-sur-zcx-que-se-passe-t-il-pendant-la-panne)). Une panne d'1 heure reste largement dans cette fenêtre : au redémarrage du service, GitLab rejoue automatiquement les webhooks en attente et USS se resynchronise tout seul. La procédure manuelle de vérification décrite dans la gestion des incidents ne devient nécessaire qu'au-delà de ~3h30 de panne.
+**La reprise après une panne d'1 heure est déjà automatique**, sans procédure particulière : la fenêtre de grâce des relances GitLab est d'environ **3h36** (1 + 5 + 10 + 100 + 100 minutes, voir [Incident sur zCX](../gestion-incidents.md#incident-sur-zcx-que-se-passe-t-il-pendant-la-panne)). Une panne d'1 heure reste largement dans cette fenêtre : au redémarrage du service, GitLab rejoue automatiquement les webhooks en attente et USS se resynchronise tout seul. La procédure manuelle de vérification décrite dans la gestion des incidents ne devient nécessaire qu'au-delà de ~3h36 de panne.
 
 ## DB2 ou DRS indisponible alors que zCX fonctionne
 
@@ -49,7 +49,7 @@ Deux propriétés déjà établies rendent ce choix sûr :
 
 L'alternative (effectuer quand même l'opération USS et laisser `SYNC_STATUS` provisoirement désynchronisé) aurait cassé la garantie même que le verrou de synchro existe pour fournir — elle n'est pas retenue.
 
-Si l'indisponibilité dépasse la fenêtre de relance GitLab (~3h30) sans que DB2/DRS ne revienne, `SYNC_STATUS` reste à `PENDING` au-delà du seuil d'alerte (même principe que le heartbeat, voir [Vérification côté consommateur](detection-defauts.md#verification-cote-consommateur-verrou-de-synchro)) — détecté par la même supervision, sans mécanisme dédié supplémentaire.
+Si l'indisponibilité dépasse la fenêtre de relance GitLab (~3h36) sans que DB2/DRS ne revienne, `SYNC_STATUS` reste à `PENDING` au-delà du seuil d'alerte (même principe que le heartbeat, voir [Vérification côté consommateur](detection-defauts.md#verification-cote-consommateur-verrou-de-synchro)) — détecté par la même supervision, sans mécanisme dédié supplémentaire.
 
 ## Panne côté z/OS
 
@@ -76,7 +76,7 @@ Reste le cas plus spécifique d'une **corruption d'objets git ou d'un verrou zFS
 
 L'opération USS ([`git worktree add`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot)/[`fetch`](../../commandes-git.md#les-commandes-de-base-deja-connues)/`reset --hard`) fait partie intégrante de la chaîne dont dépend le `2xx` renvoyé à GitLab, au même titre que l'écriture DB2 (voir [Comportement décidé pour DB2/DRS indisponible](#db2-ou-drs-indisponible-alors-que-zcx-fonctionne) juste au-dessus) : un échec côté USS empêche donc la réponse `2xx`, exactement comme un échec DB2/DRS. Les deux mécanismes déjà en place répondent alors sans rien ajouter :
 
-- **Le cas transitoire se résorbe tout seul** : GitLab rejoue le webhook selon son calendrier habituel (jusqu'à ~3h30), et un verrou zFS momentané ou un pic d'I/O disparaît généralement avant la fin de cette fenêtre — sans qu'aucune alerte ne se déclenche, exactement comme n'importe quel autre échec transitoire déjà décrit sur cette page.
+- **Le cas transitoire se résorbe tout seul** : GitLab rejoue le webhook selon son calendrier habituel (jusqu'à ~3h36), et un verrou zFS momentané ou un pic d'I/O disparaît généralement avant la fin de cette fenêtre — sans qu'aucune alerte ne se déclenche, exactement comme n'importe quel autre échec transitoire déjà décrit sur cette page.
 - **Le cas persistant (corruption réelle, verrou qui ne se libère jamais) laisse `SYNC_STATUS` bloqué à `PENDING`** au-delà du seuil d'alerte — le même signal, déjà posé dans [Vérification côté consommateur](detection-defauts.md#verification-cote-consommateur-verrou-de-synchro), qui couvre "un service de sync mort en cours d'opération sur cette branche précise". Une corruption d'objets git en est une cause parmi d'autres, pas un cas à distinguer explicitement au niveau de la supervision.
 
 Ce qui distingue donc un échec transitoire d'un échec persistant n'est jamais la *nature* de la panne (réseau, DB2/DRS, disque, corruption git) — c'est uniquement sa **durée**, mesurée par le même seuil `PENDING` déjà en place. Ajouter une alerte dédiée à l'intégrité des objets git dupliquerait ce mécanisme sans rien détecter de plus tôt.

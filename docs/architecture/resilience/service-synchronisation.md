@@ -267,9 +267,9 @@ Ce même journal sert de source à la fois au fonctionnement normal (webhooks) e
 | Bas (packages regroupés, ~5 unités chacun) | 1 500 | ~12 | ~18 000 |
 | Haut (correctifs unitaires, ~1 unité chacun) | 7 500 | ~7 | ~52 500 |
 
-→ Fourchette retenue : **~18 000 à ~55 000 événements par an**, tous types confondus, sur l'ensemble du patrimoine (~600 applications).
+→ Fourchette retenue : **~18 000 à ~52 500 événements par an**, tous types confondus, sur l'ensemble du patrimoine (~600 applications).
 
-Avec une ligne JSON d'environ 280 octets (hash SHA-1 complets, pas tronqués) : **~5 à ~15 Mo par an**. Cumulé sur 10 ans : ~50 à 154 Mo. Sur 20 ans : ~100 à 308 Mo — négligeable, y compris à cette échelle de temps.
+Avec une ligne JSON d'environ 280 octets (hash SHA-1 complets, pas tronqués) : **~5 à ~14,7 Mo par an**. Cumulé sur 10 ans : ~50 à 147 Mo. Sur 20 ans : ~100 à 294 Mo — négligeable, y compris à cette échelle de temps.
 
 **Décision retenue :**
 
