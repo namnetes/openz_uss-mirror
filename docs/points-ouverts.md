@@ -56,4 +56,21 @@ Une analyse de conformité multi-niveaux (voir [Conformité réglementaire](conf
 
 ## Questions d'architecture à trancher
 
-Aucune question d'architecture technique n'est actuellement ouverte — les points restants relèvent d'arbitrages organisationnels ou réglementaires (voir les deux sections ci-dessus).
+### Restreindre les caractères autorisés dans un nom de branche
+
+[Cycle de vie d'une branche](architecture/resilience/service-synchronisation.md#cycle-de-vie-dune-branche) part du principe qu'un nom de branche GitLab peut contenir à peu près n'importe quel caractère valide en Git, `/` inclus, et documente la conversion systématique de ce `/` en `-`. Mais rien dans ce corpus n'établit que cet usage du `/` corresponde à une pratique réellement répandue aujourd'hui plutôt qu'à un exemple illustratif — la CI existante n'a, à ce jour, jamais eu à trancher explicitement cette question.
+
+**Option envisagée : imposer une liste blanche de caractères autorisés** — `a-z`, `A-Z`, `0-9`, `-`, `_` — via le mécanisme natif [**Push Rules**](https://docs.gitlab.com/ee/user/project/repository/push_rules.html) de GitLab (`Settings → Repository → Push Rules → Branch name`, une regex appliquée côté serveur, valable pour tout canal de création de branche : CLI, Web IDE, API). L'intérêt : fermer par construction, à la création de la branche, le risque déjà identifié dans [Bug applicatif ciblé sur une branche](architecture/resilience/pannes-et-consequences.md#bug-applicatif-cible-sur-une-branche) (*« caractère non géré dans un nom de branche au-delà du simple `/` »*), plutôt que de compter sur la réconciliation périodique pour le rattraper après coup.
+
+Ce que cette option laisse en suspens :
+
+- **Le `/` serait exclu de cette liste** — ce qui romprait la convention illustrée par les exemples `pkg/PKG-20260616-0042` et `DAY1000001/features-demo`, si elle est réellement utilisée par une ou plusieurs équipes aujourd'hui. Avant de trancher, il faut établir si cet usage du `/` reflète une pratique existante à préserver, ou seulement un exemple technique sans équivalent réel — une question de fait, pas d'architecture.
+- **Push Rules est une fonctionnalité de palier Premium/Ultimate** de GitLab — sa disponibilité dépend de la licence effectivement souscrite par la plateforme, une contrainte hors du périmètre de ce projet de miroir.
+- Si le `/` est un jour interdit, la logique de conversion `/` → `-` documentée dans [Cycle de vie d'une branche](architecture/resilience/service-synchronisation.md#cycle-de-vie-dune-branche) resterait nécessaire un temps pour les branches déjà existantes créées avant la restriction, sauf migration explicite de leur nom.
+
+**Complément possible, en plus de la Push Rule — un hook Git côté poste développeur** : un rejet serveur intervient seulement au moment du `push`, ce qui peut être tardif si le développeur ne pousse pas rapidement après avoir nommé sa branche. Un hook local (`pre-push` ou équivalent) donnerait un retour immédiat, avant même la tentative de push. Deux limites propres à ce complément, à ne pas confondre avec la Push Rule elle-même :
+
+- il n'est **jamais versionné par Git** (le dossier `.git/hooks/` n'est pas commité) — son déploiement sur l'ensemble des postes suppose un mécanisme de distribution à part (template Git global, `core.hooksPath` d'entreprise, outil dédié type Husky), un sujet d'outillage poste de travail distinct de ce projet de miroir ;
+- il reste **contournable** (`git push --no-verify`, ou simplement non installé) — un confort de retour rapide pour le développeur, jamais une garantie. La seule barrière qui compte réellement pour fermer le risque reste la Push Rule côté serveur, incontournable quel que soit le canal.
+
+Cette question relève des équipes qui nomment leurs branches au quotidien (leur convention réelle) et du propriétaire de la plateforme GitLab (disponibilité de la fonctionnalité) — pas uniquement de ce projet de miroir, qui ne fait qu'hériter du nom de branche tel que GitLab le lui transmet.
