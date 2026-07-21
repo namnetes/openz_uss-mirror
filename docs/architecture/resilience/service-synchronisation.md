@@ -120,11 +120,25 @@ Le service de sync convertit donc systématiquement **chaque `/` du nom de branc
 
 Une fois cette conversion appliquée, le service de sync réagit à trois types d'événements GitLab :
 
-| Événement GitLab | Action USS |
-|---|---|
-| Création de branche `pkg/...` | [`git worktree add /u/gitlab/<app>/workspaces/<branche-converti> <branche>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) |
-| Push (commit) sur la branche | `git -C /u/gitlab/<app>/workspaces/<branche-converti> fetch && git -C /u/gitlab/<app>/workspaces/<branche-converti> reset --hard origin/<branche>` |
-| Suppression de branche (après merge) | [`git worktree remove /u/gitlab/<app>/workspaces/<branche-converti>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) |
+| Événement GitLab | Action USS | Action DB2 (`SYNC_STATUS`) |
+|---|---|---|
+| Création de branche `pkg/...` | [`git worktree add /u/gitlab/<app>/workspaces/<branche-converti> <branche>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) | Ligne créée (`STATUS = 'PENDING'` puis `'READY'`) |
+| Push (commit) sur la branche | `git -C /u/gitlab/<app>/workspaces/<branche-converti> fetch && git -C /u/gitlab/<app>/workspaces/<branche-converti> reset --hard origin/<branche>` | Ligne existante mise à jour (`STATUS = 'PENDING'` puis `'READY'`) |
+| Suppression de branche (après merge) | [`git worktree remove /u/gitlab/<app>/workspaces/<branche-converti>`](../../commandes-git.md#worktree-plusieurs-repertoires-de-travail-pour-un-seul-depot) | Ligne **supprimée** : `DELETE FROM SYNC_STATUS WHERE APP_CODE = '<app>' AND BRANCH_NAME = '<branche>'` |
+
+!!! info "Décision retenue : la suppression de branche supprime aussi la ligne `SYNC_STATUS`"
+    `SYNC_STATUS` porte un état courant, une ligne par branche **active** (voir [Pas besoin d'index sur LAST_SYNCED_AT](detection-defauts.md#heartbeat-db2-detection-quasi-temps-reel)) — une branche supprimée n'a plus vocation à y figurer. Sans ce `DELETE`, la ligne resterait indéfiniment à `STATUS = 'READY'`, pointant vers un workspace qui n'existe plus : un consommateur qui interrogerait ce nom de branche par erreur (ou par confusion après un renommage, voir plus bas) lirait un statut trompeur plutôt qu'une absence claire de résultat.
+
+    Cette suppression s'exécute dans le même appel DRS que le `git worktree remove`, avec la même règle d'ordre déjà posée pour `PENDING`/`READY` : elle n'a lieu qu'**après** le succès de l'opération USS, jamais avant — un échec de suppression du workspace ne doit pas faire disparaître la ligne DB2 qui, sinon, décrirait un état déjà obsolète.
+
+!!! note "Renommage de branche : une décomposition, pas un nouveau cas"
+    Git ne connaît pas de renommage atomique d'une branche sur un remote : renommer une branche revient toujours à **supprimer l'ancienne réf et en créer une nouvelle** pointant sur le même commit — que ce renommage soit fait manuellement (`git push origin :ancien-nom nouveau-nom`) ou via le bouton *Rename branch* de l'interface GitLab, qui exécute ces deux mêmes opérations sous le capot. Il n'existe pas d'événement webhook `RENAME` dédié, seulement les événements `create` et `delete` déjà couverts par le tableau ci-dessus.
+
+    Un renommage se traite donc sans aucune logique spéciale, par la simple combinaison des deux lignes déjà existantes : suppression du workspace et de la ligne `SYNC_STATUS` sous l'ancien nom, création du workspace et d'une nouvelle ligne sous le nouveau nom. Trois garanties déjà en place restent valables sans modification :
+
+    - le [journal de synchronisation](#journalisation-des-operations), en ajout continu, conserve intactes les entrées passées sous l'ancien nom de branche — une trace historique, jamais réécrite ;
+    - le [tag de déploiement](#retention-et-purge-des-objets-git) est ancré sur le commit, pas sur le nom de branche — un renommage ne rompt donc jamais la bijection source/load exigée par l'IG ;
+    - si l'événement de suppression de l'ancienne branche est perdu, la [réconciliation périodique](detection-defauts.md#reconciliation-periodique) détecte l'ancien workspace comme orphelin et le supprime, exactement comme pour n'importe quelle autre branche supprimée.
 
 !!! info "Pour qui découvre Git : que font `fetch` et `reset --hard` ?"
     Deux commandes distinctes, deux rôles différents :
